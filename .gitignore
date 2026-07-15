@@ -1,0 +1,25 @@
+# Archivos grandes de raster y capas geoespaciales (no subir a GitHub)
+*.tif
+*.asc
+*.img
+*.nc
+
+# Shapefiles (pesados; subir solo si son pequeños y necesarios)
+# Comenta estas líneas si quieres incluir algún shapefile pequeño
+# *.shp
+# *.dbf
+# *.shx
+# *.prj
+
+# Datos de ocurrencias originales grandes
+*.zip
+
+# Salidas de R temporales
+*.Rhistory
+*.RData
+*.Rproj.user/
+
+# Archivos de sistema
+.DS_Store
+Thumbs.db
+datos/capas/areas_protegidas/wdpa_colombia.gpkg
