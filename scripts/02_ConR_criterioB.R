@@ -147,6 +147,40 @@ listado_ap <- interseccion %>%
   group_by(tax) %>%
   summarise(areas_protegidas = paste(sort(unique(NAME)), collapse = "; "), .groups = "drop")
 
+# Intersección de registros con municipios y departamentos (GADM nivel 2)
+# Se guarda para reusar en scripts 04, 05 y 06
+ruta_mpios <- "datos/capas/pais/Colombia_mpios.gpkg"
+if (!file.exists(ruta_mpios)) {
+  mpios <- gadm("Colombia", level = 2, path = tempdir(), version = "latest") %>% st_as_sf()
+  st_write(mpios, ruta_mpios)
+} else {
+  mpios <- st_read(ruta_mpios, quiet = TRUE)
+}
+
+reg_mpios <- puntos_sf %>%
+  st_join(mpios %>% dplyr::select(municipio = NAME_2, departamento = NAME_1)) %>%
+  st_drop_geometry() %>%
+  dplyr::select(tax, id, municipio, departamento)
+
+write.csv(reg_mpios, "resultados/ConR/criterioB/registros_municipios_dptos.csv",
+          row.names = FALSE, fileEncoding = "UTF-8")
+
+# Texto tamaño poblacional por especie (plantilla SIS)
+num_palabras <- function(n) {
+  if (is.na(n) || n == 0) return("ninguna")
+  palabras <- c("una","dos","tres","cuatro","cinco","seis","siete","ocho","nueve","diez")
+  if (n >= 1 && n <= 10) palabras[n] else as.character(n)
+}
+
+desc_tamano <- resumen_conr %>%
+  mutate(desc_tamano_pob = paste0(
+    "La especie tiene registradas hasta el momento ",
+    sapply(n_subpoblaciones, num_palabras),
+    " subpoblacion", ifelse(n_subpoblaciones == 1, ".", "es."),
+    " No se conoce nada sobre la abundancia o tendencia poblacional de la especie."
+  )) %>%
+  dplyr::select(tax, desc_tamano_pob)
+
 # Actualizar base_maestra.csv con resultados de ConR
 base_maestra <- read.csv("SIS_Connect/base_maestra.csv",
                          encoding = "UTF-8", check.names = FALSE)
@@ -163,6 +197,7 @@ base_maestra <- base_maestra %>%
             by = c("NOMBRE CIENTÍFICO sin autor" = "tax")) %>%
   left_join(dplyr::select(listado_ap, tax, areas_protegidas),
             by = c("NOMBRE CIENTÍFICO sin autor" = "tax")) %>%
+  left_join(desc_tamano, by = c("NOMBRE CIENTÍFICO sin autor" = "tax")) %>%
   mutate(
     `EOO (km2)`                            = coalesce(`EOO (km2)`, EOO_km2),
     `AOO (km2)`                            = coalesce(`AOO (km2)`, AOO_km2),
@@ -170,9 +205,15 @@ base_maestra <- base_maestra %>%
     `# SUBPOBLACIONES`                     = coalesce(`# SUBPOBLACIONES`, n_subpop),
     `% OCURRENCIAS EN AREAS PROTEGIDAS`    = coalesce(`% OCURRENCIAS EN AREAS PROTEGIDAS`, pct_en_ap),
     `LISTADO DE AREAS PROTEGIDAS CON OCURRENCIAS` = coalesce(
-      `LISTADO DE AREAS PROTEGIDAS CON OCURRENCIAS`, areas_protegidas)
+      `LISTADO DE AREAS PROTEGIDAS CON OCURRENCIAS`, areas_protegidas),
+    `DESCRIPCIÓN TAMAÑO POBLACIONAL Y DEMOGRAFÍA` = coalesce(
+      `DESCRIPCIÓN TAMAÑO POBLACIONAL Y DEMOGRAFÍA`, desc_tamano_pob),
+    `REPORTE DE PRESENCIA EN AREAS PROTEGIDAS`    = coalesce(
+      `REPORTE DE PRESENCIA EN AREAS PROTEGIDAS`,
+      ifelse(is.na(pct_en_ap) | pct_en_ap == 0, "NO", "YES"))
   ) %>%
-  dplyr::select(-EOO_km2, -AOO_km2, -n_loc, -n_subpop, -pct_en_ap, -areas_protegidas)
+  dplyr::select(-EOO_km2, -AOO_km2, -n_loc, -n_subpop, -pct_en_ap,
+                -areas_protegidas, -desc_tamano_pob)
 
 write.csv(base_maestra, "SIS_Connect/base_maestra.csv",
           row.names = FALSE, fileEncoding = "UTF-8")

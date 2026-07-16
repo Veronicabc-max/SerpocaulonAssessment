@@ -265,6 +265,61 @@ write.csv(do.call(rbind, Tallfg),
           "resultados/eecorisk/fragmentacion_severa/detalle_parches.csv",
           row.names = FALSE)
 
+# Municipios y departamentos por especie (generado en script 02)
+reg_mpios <- read.csv("resultados/ConR/criterioB/registros_municipios_dptos.csv",
+                      encoding = "UTF-8")
+
+mpio_dpto_sp <- function(sp) {
+  d <- reg_mpios %>% filter(tax == sp, !is.na(municipio))
+  if (nrow(d) == 0) return("municipios no disponibles")
+  pares <- d %>% distinct(municipio, departamento) %>%
+    mutate(txt = paste0(municipio, " (departamento de ", departamento, ")"))
+  paste(pares$txt, collapse = ", ")
+}
+
+# Textos descriptivos SIS desde eecorisk
+num_palabras <- function(n) {
+  if (is.na(n) || n == 0) return("ninguna")
+  p <- c("una","dos","tres","cuatro","cinco","seis","siete","ocho","nueve","diez")
+  if (n >= 1 && n <= 10) p[n] else as.character(n)
+}
+
+subpop_res <- read.csv("resultados/ConR/subpoblaciones/subpoblaciones.csv")
+
+Tablafrag <- Tablafrag %>%
+  left_join(subpop_res %>% rename(n_subpop = subpop), by = "tax") %>%
+  mutate(
+    mpios = sapply(tax, mpio_dpto_sp),
+
+    desc_frag = case_when(
+      cod_fragmentacion != "YES" ~ NA_character_,
+      TRUE ~ paste0("El ", FS_score, "% de parches de hábitat donde se encuentra la especie ",
+                    "son pequeños y aislados. Estos parches se encuentran en ",
+                    mpios, ".")
+    ),
+
+    desc_dism_hab = case_when(
+      cod_dism_habitat != "YES" ~ NA_character_,
+      TRUE ~ paste0(tools::toTitleCase(num_palabras(n_subpop)),
+                    " subpoblacion", ifelse(n_subpop == 1, " de", "es de"),
+                    " la especie se encuentran en paisajes con destrucción y degradación ",
+                    "de su hábitat. Estas subpoblaciones se encuentran en ", mpios, ".")
+    ),
+
+    desc_dism_subpob = case_when(
+      cod_dism_subpob != "YES" ~ NA_character_,
+      TRUE ~ paste0("Es posible que alguna(s) subpoblación(es) de la especie en ",
+                    mpios, " haya(n) desaparecido por la destrucción de su hábitat.")
+    ),
+
+    tendencia         = ifelse(cod_dism_habitat == "YES", "Decreasing",
+                               ifelse(cod_dism_habitat == "NO", "Stable", "Unknown")),
+    fuente_tendencia  = ifelse(tendencia == "Unknown", "Unknown", "Inferred"),
+    no_amenazas       = ifelse(cod_dism_habitat == "NO" & cod_dism_subpob == "NO",
+                               "TRUE", "FALSE"),
+    amenazas_descon   = ifelse(cod_dism_habitat == "Unknown", "TRUE", "FALSE")
+  )
+
 # Actualizar base_maestra.csv con todos los campos derivados de eecorisk
 base_maestra <- read.csv("SIS_Connect/base_maestra.csv",
                          encoding = "UTF-8", check.names = FALSE)
@@ -273,22 +328,33 @@ names(base_maestra) <- make.unique(names(base_maestra))
 base_maestra <- base_maestra %>%
   left_join(dplyr::select(Tablafrag, tax, FS_score, pct_HH,
                            cod_fragmentacion, cod_dism_habitat, cod_dism_subpob,
-                           subpob_desap_sino, fuente_dism_habitat, fuente_dism_subpob),
+                           subpob_desap_sino, fuente_dism_habitat, fuente_dism_subpob,
+                           desc_frag, desc_dism_hab, desc_dism_subpob,
+                           tendencia, fuente_tendencia, no_amenazas, amenazas_descon),
             by = c("NOMBRE CIENTÍFICO sin autor" = "tax")) %>%
   mutate(
-    `% PARCHES PEQUEÑOS Y AISLADOS`                          = coalesce(`% PARCHES PEQUEÑOS Y AISLADOS`, FS_score),
-    `% HUELLA HUMANA EN LA AOO`                              = coalesce(`% HUELLA HUMANA EN LA AOO`, pct_HH),
-    `SUBPOBLACIONES DESAPARECIDAS`                           = coalesce(`SUBPOBLACIONES DESAPARECIDAS`, subpob_desap_sino),
-    `CÓDIGO SIS FRAGMENTACIÓN`                               = coalesce(`CÓDIGO SIS FRAGMENTACIÓN`, cod_fragmentacion),
-    `CÓDIGO SIS DISMINUCIÓN CONTINUA HÁBITAT`                = coalesce(`CÓDIGO SIS DISMINUCIÓN CONTINUA HÁBITAT`, cod_dism_habitat),
-    `CÓDIGO SIS DISMINUCIÓN CONTINUA SUBPOBLACIONES`         = coalesce(`CÓDIGO SIS DISMINUCIÓN CONTINUA SUBPOBLACIONES`, cod_dism_subpob),
-    `CÓDIGO SIS FUENTE DE LA DISM. CONTINUA HÁBITAT`         = coalesce(`CÓDIGO SIS FUENTE DE LA DISM. CONTINUA HÁBITAT`, fuente_dism_habitat),
-    `CÓDIGO SIS FUENTE DE LA DISM. CONTINUA SUBPOBLACIONES`  = coalesce(`CÓDIGO SIS FUENTE DE LA DISM. CONTINUA SUBPOBLACIONES`, fuente_dism_subpob)
+    `% PARCHES PEQUEÑOS Y AISLADOS`                               = coalesce(`% PARCHES PEQUEÑOS Y AISLADOS`, FS_score),
+    `% HUELLA HUMANA EN LA AOO`                                   = coalesce(`% HUELLA HUMANA EN LA AOO`, pct_HH),
+    `SUBPOBLACIONES DESAPARECIDAS`                                = coalesce(`SUBPOBLACIONES DESAPARECIDAS`, subpob_desap_sino),
+    `CÓDIGO SIS FRAGMENTACIÓN`                                    = coalesce(`CÓDIGO SIS FRAGMENTACIÓN`, cod_fragmentacion),
+    `DESCRIPCIÓN DE FRAGMENTACIÓN SIS`                            = coalesce(`DESCRIPCIÓN DE FRAGMENTACIÓN SIS`, desc_frag),
+    `CÓDIGO SIS DISMINUCIÓN CONTINUA HÁBITAT`                    = coalesce(`CÓDIGO SIS DISMINUCIÓN CONTINUA HÁBITAT`, cod_dism_habitat),
+    `DESCRIPCIÓN DE DISMINUCIÓN CONTINUA HÁBITAT SIS`            = coalesce(`DESCRIPCIÓN DE DISMINUCIÓN CONTINUA HÁBITAT SIS`, desc_dism_hab),
+    `CÓDIGO SIS FUENTE DE LA DISM. CONTINUA HÁBITAT`             = coalesce(`CÓDIGO SIS FUENTE DE LA DISM. CONTINUA HÁBITAT`, fuente_dism_habitat),
+    `CÓDIGO SIS DISMINUCIÓN CONTINUA SUBPOBLACIONES`             = coalesce(`CÓDIGO SIS DISMINUCIÓN CONTINUA SUBPOBLACIONES`, cod_dism_subpob),
+    `DESCRIPCIÓN DE DISMINUCIÓN CONTINUA SUBPOBLACIONES SIS`     = coalesce(`DESCRIPCIÓN DE DISMINUCIÓN CONTINUA SUBPOBLACIONES SIS`, desc_dism_subpob),
+    `CÓDIGO SIS FUENTE DE LA DISM. CONTINUA SUBPOBLACIONES`      = coalesce(`CÓDIGO SIS FUENTE DE LA DISM. CONTINUA SUBPOBLACIONES`, fuente_dism_subpob),
+    `CÓDIGO SIS TENDENCIA POBLACIONAL`                           = coalesce(`CÓDIGO SIS TENDENCIA POBLACIONAL`, tendencia),
+    `CÓDIGO SIS FUENTE DE LA TENDENCIA POBLACIONAL`              = coalesce(`CÓDIGO SIS FUENTE DE LA TENDENCIA POBLACIONAL`, fuente_tendencia),
+    `REPORTE DE "NO AMENAZAS" SIS`                               = coalesce(`REPORTE DE "NO AMENAZAS" SIS`, no_amenazas),
+    `REPORTE DE "AMENAZAS DESCONOCIDAS" SIS`                     = coalesce(`REPORTE DE "AMENAZAS DESCONOCIDAS" SIS`, amenazas_descon)
   ) %>%
   dplyr::select(-FS_score, -pct_HH, -cod_fragmentacion, -cod_dism_habitat,
-                -cod_dism_subpob, -subpob_desap_sino, -fuente_dism_habitat, -fuente_dism_subpob)
+                -cod_dism_subpob, -subpob_desap_sino, -fuente_dism_habitat, -fuente_dism_subpob,
+                -desc_frag, -desc_dism_hab, -desc_dism_subpob,
+                -tendencia, -fuente_tendencia, -no_amenazas, -amenazas_descon)
 
 write.csv(base_maestra, "SIS_Connect/base_maestra.csv",
           row.names = FALSE, fileEncoding = "UTF-8")
 
-message("Script 03 completado.")
+message("Script 04 completado.")
