@@ -1,7 +1,6 @@
 # Archivos grandes de raster y capas geoespaciales (no subir a GitHub)
 *_original.tif
 dem_colombia.tif
-iheh_col.tif
 *.asc
 *.img
 *.nc
