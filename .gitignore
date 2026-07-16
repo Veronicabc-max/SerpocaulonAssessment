@@ -24,3 +24,4 @@ dem_colombia.tif
 .DS_Store
 Thumbs.db
 datos/capas/areas_protegidas/wdpa_colombia.gpkg
+datos/capas/pais/Colombia_deptos.gpkg
