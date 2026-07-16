@@ -50,16 +50,28 @@ if (!file.exists(ruta_elv)) {
 # y guardar en datos/capas/coberturas_tierra/ con los nombres indicados.
 #
 # Preparar rasters BNB a resolución 300m (correr UNA VEZ si los descargaste en resolución original):
-for (año in c("1990","2000","2024")) {
-  r <- raster(paste0("datos/capas/coberturas_tierra/BNB_", año, "_original.tif"))
-  r <- aggregate(r, fact=10, fun=min)
-  r <- resample(r, SB10)
-  writeRaster(r, paste0("datos/capas/coberturas_tierra/BNB_300_", año, ".tif"), format="GTiff")
+# Preparar BNB_300 (correr UNA VEZ después de descargar los originales)
+if (!file.exists("datos/capas/coberturas_tierra/BNB_300_2024.tif")) {
+  r2024 <- raster("datos/capas/coberturas_tierra/BNB_2024_original.tif")
+  r2024 <- aggregate(r2024, fact = 10, fun = min)
+  writeRaster(r2024, "datos/capas/coberturas_tierra/BNB_300_2024.tif",
+              format = "GTiff", overwrite = TRUE)
+} else {
+  r2024 <- raster("datos/capas/coberturas_tierra/BNB_300_2024.tif")
 }
 
-SB10   <- raster("datos/capas/coberturas_tierra/BNB_300_2024.tif")   # capa actual (referencia)
-SB50   <- raster("datos/capas/coberturas_tierra/BNB_2024.tif")       # resolución original para SB1000
-SB1000 <- aggregate(SB50, fact = 20, fun = max)
+SB10   <- raster("datos/capas/coberturas_tierra/BNB_300_2024.tif")
+SB1000 <- aggregate(r2024, fact = 2, fun = max)
+
+for (año in c("1990", "2000")) {
+  ruta_300 <- paste0("datos/capas/coberturas_tierra/BNB_300_", año, ".tif")
+  if (!file.exists(ruta_300)) {
+    r <- raster(paste0("datos/capas/coberturas_tierra/BNB_", año, "_original.tif"))
+    r <- aggregate(r, fact = 10, fun = min)
+    r <- resample(r, SB10)
+    writeRaster(r, ruta_300, format = "GTiff", overwrite = TRUE)
+  }
+}
 
 # Stack histórico BNB para análisis de disminución continua (1990, 2000, 2024)
 BNBstk <- stack(
@@ -141,8 +153,10 @@ sfrag <- function(BNB, puntos, xy = c(2, 3), bufferSize = 20, bufferPoints = TRU
 vs1000 <- getValues(SB1000); cells <- seq_along(vs1000)
 AOOok  <- vector("list", length(ne))
 
+pb <- txtProgressBar(min = 0, max = length(ne), style = 3)
 for (i in seq_along(ne)) {
-  message(i, "/", length(ne), " - ", ne[i])
+  setTxtProgressBar(pb, i)
+  message(" ", ne[i])
   if (nrow(csp[[i]]) == 0) next
   cex     <- extract(SB1000, csp1[[i]], cell = TRUE)
   cells1  <- cells[na.omit(-cex[, 1])]
@@ -153,14 +167,19 @@ for (i in seq_along(ne)) {
   AOOok[[i]] <- AHO(SB10E, csp[[i]], xy = c(3, 2),
                     bufferSize = 6000, bufferPoints = TRUE, elv = elv)
 }
+close(pb)
 
 # Fragmentación severa
 sg <- vector("list", length(ne))
+pb2 <- txtProgressBar(min = 0, max = length(ne), style = 3)
 for (i in seq_along(ne)) {
+  setTxtProgressBar(pb2, i)
+  message(" ", ne[i])
   if (is.null(AOOok[[i]])) next
   if (length(unique(AOOok[[i]])) == 1 && unique(AOOok[[i]]) == 0) next
   sg[[i]] <- sfrag(AOOok[[i]], dsp[[i]], xy = c(3, 2), bufferSize = 20, bufferPoints = TRUE)
 }
+close(pb2)
 
 # % Huella humana en el AHO por especie
 pct_hh <- sapply(seq_along(ne), function(i) {
