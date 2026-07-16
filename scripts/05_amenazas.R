@@ -15,11 +15,16 @@
 #   ✓ Vías (OpenStreetMap): descargado automáticamente con osmdata
 #     Código SIS: 4.1 - Roads & railroads
 #
-#   ⏳ Cobertura de la tierra (IDEAM 2022): datos/capas/coberturas_tierra/cobertura_2022/
-#     Descargar desde el portal IDEAM: https://experience.arcgis.com/experience/568ddab184334f6b81a04d2fe9aac262
-#     Buscar: "Cobertura de la Tierra 100K Periodo 2022 limite administrativo"
-#     Códigos SIS derivados: 2.1.4 (cultivos), 2.3.4 (ganadería), 1.1 (urbano)
-#     PENDIENTE: agregar cuando esté disponible la capa
+#   ✓ Cobertura de la tierra (IDEAM 2022): datos/capas/coberturas_tierra/ECOSISTEMAS_18062025.gdb
+#     Fuente: IDEAM – "Cobertura de la Tierra 100K Periodo 2022 limite administrativo"
+#     Descargable en: https://experience.arcgis.com/experience/568ddab184334f6b81a04d2fe9aac262
+#     Layer usada: e_cobertura_tierra_2022_admin
+#     Campos: nivel_1 (categoría CLC principal), nivel_2 (subcategoría)
+#       nivel_1 == "1" → territorios artificializados → SIS 1.1 (urbano)
+#       nivel_2 %in% c("21","22","24") → cultivos y áreas agrícolas heterg. → SIS 2.1.4
+#       nivel_2 == "23" → pastos → SIS 2.3.4
+#     NOTA: archivo ~4 GB, no está en GitHub. Estudiante debe descargar y guardar en:
+#       datos/capas/coberturas_tierra/ECOSISTEMAS_18062025.gdb
 #
 #   ✗ Incendios (FIRMS/NASA): no se incluyó porque los datos de FIRMS solo están
 #     disponibles para los últimos 7 días de forma directa. Para datos históricos
@@ -37,8 +42,11 @@ sf_use_s2(FALSE)
 registros  <- read.csv("datos/registros/registros_limpios.csv", encoding = "UTF-8") %>%
   filter(!is.na(ddlat), !is.na(ddlon))
 puntos_sf  <- st_as_sf(registros, coords = c("ddlon", "ddlat"), crs = 4326)
-reg_mpios  <- read.csv("resultados/ConR/criterioB/registros_municipios_dptos.csv",
-                       encoding = "UTF-8")
+ruta_mpios_csv <- "resultados/ConR/criterioB/registros_municipios_dptos.csv"
+if (!file.exists(ruta_mpios_csv))
+  stop("Archivo no encontrado: ", ruta_mpios_csv,
+       "\nAsegúrate de haber corrido el script 02_ConR_criterioB.R primero.")
+reg_mpios  <- read.csv(ruta_mpios_csv, encoding = "UTF-8")
 subpop_res <- read.csv("resultados/ConR/subpoblaciones/subpoblaciones.csv")
 base_eeco  <- read.csv("resultados/eecorisk/fragmentacion_severa/resultados_eecorisk.csv",
                        encoding = "UTF-8")
@@ -110,44 +118,87 @@ vias_buf <- st_buffer(vias, dist = 0.009)   # ~1 km en grados decimales
 af_vias <- pct_subpob_amenaza(puntos_sf, vias_buf, subpop_res) %>%
   rename(pct_vias = pct_afectadas, n_vias = n_subpob_amenazada)
 
+# Cobertura de la tierra (IDEAM 2022) - CLC Corine Land Cover
+# Archivo ~4 GB, no está en GitHub; descargar desde portal IDEAM y guardar en:
+# datos/capas/coberturas_tierra/ECOSISTEMAS_18062025.gdb
+ruta_cob <- "datos/capas/coberturas_tierra/ECOSISTEMAS_18062025.gdb"
+
+tiene_cobertura <- file.exists(ruta_cob)
+
+if (tiene_cobertura) {
+  cob <- st_read(ruta_cob, layer = "e_cobertura_tierra_2022_admin", quiet = TRUE) %>%
+    st_transform(4326) %>%
+    st_make_valid()
+
+  cultivos <- cob %>% filter(nivel_2 %in% c("21", "22", "24"))
+  ganaderia <- cob %>% filter(nivel_2 == "23")
+  urbano    <- cob %>% filter(nivel_1 == "1")
+
+  af_cultivos  <- pct_subpob_amenaza(puntos_sf, cultivos,  subpop_res) %>%
+    rename(pct_cultivos  = pct_afectadas, n_cultivos  = n_subpob_amenazada)
+  af_ganaderia <- pct_subpob_amenaza(puntos_sf, ganaderia, subpop_res) %>%
+    rename(pct_ganaderia = pct_afectadas, n_ganaderia = n_subpob_amenazada)
+  af_urbano    <- pct_subpob_amenaza(puntos_sf, urbano,    subpop_res) %>%
+    rename(pct_urbano    = pct_afectadas, n_urbano    = n_subpob_amenazada)
+} else {
+  message("Capa de cobertura 2022 no encontrada en ", ruta_cob)
+  message("Las amenazas de cobertura (2.1.4, 2.3.4, 1.1) no se calcularán.")
+  especies <- unique(subpop_res$tax)
+  af_cultivos  <- data.frame(tax = especies, pct_cultivos  = NA_real_, n_cultivos  = 0L)
+  af_ganaderia <- data.frame(tax = especies, pct_ganaderia = NA_real_, n_ganaderia = 0L)
+  af_urbano    <- data.frame(tax = especies, pct_urbano    = NA_real_, n_urbano    = 0L)
+}
+
 # Tabla de amenazas por especie
 amenazas_sp <- subpop_res %>%
-  left_join(af_petroleo, by = "tax") %>%
-  left_join(af_mineria,  by = "tax") %>%
-  left_join(af_vias,     by = "tax") %>%
+  left_join(af_petroleo,  by = "tax") %>%
+  left_join(af_mineria,   by = "tax") %>%
+  left_join(af_vias,      by = "tax") %>%
+  left_join(af_cultivos,  by = "tax") %>%
+  left_join(af_ganaderia, by = "tax") %>%
+  left_join(af_urbano,    by = "tax") %>%
   left_join(base_eeco %>% dplyr::select(tax, cod_dism_habitat), by = "tax")
 
 # Construir códigos SIS
 amenazas_sp <- amenazas_sp %>%
   mutate(
-    tiene_petroleo = pct_petroleo > 0 & !is.na(pct_petroleo),
-    tiene_mineria  = pct_mineria  > 0 & !is.na(pct_mineria),
-    tiene_vias     = pct_vias     > 0 & !is.na(pct_vias),
-    tiene_hab      = cod_dism_habitat == "YES"
+    tiene_petroleo  = !is.na(pct_petroleo)  & pct_petroleo  > 0,
+    tiene_mineria   = !is.na(pct_mineria)   & pct_mineria   > 0,
+    tiene_vias      = !is.na(pct_vias)      & pct_vias      > 0,
+    tiene_cultivos  = !is.na(pct_cultivos)  & pct_cultivos  > 0,
+    tiene_ganaderia = !is.na(pct_ganaderia) & pct_ganaderia > 0,
+    tiene_urbano    = !is.na(pct_urbano)    & pct_urbano    > 0,
+    tiene_hab       = cod_dism_habitat == "YES"
   ) %>%
   rowwise() %>%
   mutate(
     codigos_lista = list(c(
-      if (tiene_petroleo) "3.1",
-      if (tiene_mineria)  "3.2",
-      if (tiene_vias)     "4.1"
+      if (tiene_urbano)    "1.1",
+      if (tiene_cultivos)  "2.1.4",
+      if (tiene_ganaderia) "2.3.4",
+      if (tiene_petroleo)  "3.1",
+      if (tiene_mineria)   "3.2",
+      if (tiene_vias)      "4.1"
     )),
     alcances_lista = list(c(
-      if (tiene_petroleo) alcance_sis(pct_petroleo),
-      if (tiene_mineria)  alcance_sis(pct_mineria),
-      if (tiene_vias)     alcance_sis(pct_vias)
+      if (tiene_urbano)    alcance_sis(pct_urbano),
+      if (tiene_cultivos)  alcance_sis(pct_cultivos),
+      if (tiene_ganaderia) alcance_sis(pct_ganaderia),
+      if (tiene_petroleo)  alcance_sis(pct_petroleo),
+      if (tiene_mineria)   alcance_sis(pct_mineria),
+      if (tiene_vias)      alcance_sis(pct_vias)
     )),
 
-    cod_amenazas     = if (length(codigos_lista) == 0) "N/A" else
-                         paste(codigos_lista,  collapse = ", "),
-    cod_tiempo       = if (length(codigos_lista) == 0) "N/A" else
-                         paste(rep("Ongoing", length(codigos_lista)), collapse = ", "),
-    cod_alcance      = if (length(alcances_lista) == 0) "N/A" else
-                         paste(alcances_lista, collapse = ", "),
-    cod_severidad    = if (length(codigos_lista) == 0) "N/A" else
-                         paste(rep("Very rapid declines", length(codigos_lista)), collapse = ", "),
-    cod_presiones    = if (length(codigos_lista) == 0) "N/A" else
-                         paste(rep("1.1 | 1.2 | 2.1 | 2.2", length(codigos_lista)), collapse = " // ")
+    cod_amenazas  = if (length(codigos_lista) == 0) "N/A" else
+                      paste(codigos_lista,  collapse = ", "),
+    cod_tiempo    = if (length(codigos_lista) == 0) "N/A" else
+                      paste(rep("Ongoing", length(codigos_lista)), collapse = ", "),
+    cod_alcance   = if (length(alcances_lista) == 0) "N/A" else
+                      paste(alcances_lista, collapse = ", "),
+    cod_severidad = if (length(codigos_lista) == 0) "N/A" else
+                      paste(rep("Very rapid declines", length(codigos_lista)), collapse = ", "),
+    cod_presiones = if (length(codigos_lista) == 0) "N/A" else
+                      paste(rep("1.1 | 1.2 | 2.1 | 2.2", length(codigos_lista)), collapse = " // ")
   ) %>%
   ungroup()
 
@@ -169,21 +220,24 @@ num_palabras <- function(n) {
 amenazas_sp <- amenazas_sp %>%
   mutate(mpios = sapply(tax, mpio_dpto_sp)) %>%
   mutate(desc_amenazas = case_when(
-    !tiene_hab & !tiene_petroleo & !tiene_mineria & !tiene_vias ~
+    !tiene_hab & !tiene_petroleo & !tiene_mineria & !tiene_vias &
+      !tiene_cultivos & !tiene_ganaderia & !tiene_urbano ~
       "Las subpoblaciones conocidas de la especie se encuentran en hábitats poco perturbados por actividades humanas.",
     TRUE ~ paste0(
       tools::toTitleCase(num_palabras(subpop)), " subpoblacion",
       ifelse(subpop == 1, " conocida", "es conocidas"),
       " de la especie se encuentran en sitios con destrucción y degradación de su hábitat. ",
       "Las alteraciones del hábitat se deben principalmente a",
-      ifelse(tiene_petroleo, " la minería de hidrocarburos (petróleo y/o gas),", ""),
-      ifelse(tiene_mineria,  " la minería de metales,", ""),
-      ifelse(tiene_vias,     " la construcción de infraestructura (vías),", ""),
+      ifelse(tiene_urbano,    " la expansión urbana,", ""),
+      ifelse(tiene_cultivos,  " la agricultura (cultivos transitorios y permanentes),", ""),
+      ifelse(tiene_ganaderia, " la ganadería,", ""),
+      ifelse(tiene_petroleo,  " la extracción de hidrocarburos (petróleo y/o gas),", ""),
+      ifelse(tiene_mineria,   " la minería de metales,", ""),
+      ifelse(tiene_vias,      " la construcción de infraestructura vial,", ""),
       " en los municipios de ", mpios, "."
     )
   ))
 
-write.csv(amenazas_sp, "resultados/amenazas/tabla_amenazas.csv", row.names = FALSE)
 dir.create("resultados/amenazas", recursive = TRUE, showWarnings = FALSE)
 write.csv(amenazas_sp, "resultados/amenazas/tabla_amenazas.csv", row.names = FALSE)
 
