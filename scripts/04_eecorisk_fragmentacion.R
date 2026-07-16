@@ -191,6 +191,38 @@ pct_hh <- sapply(seq_along(ne), function(i) {
   round(mean(getValues(hh_mask), na.rm = TRUE), 0)
 })
 
+# Función discon: detecta si alguna subpoblación (parche con ocurrencias) desapareció
+# comparando capas históricas BNB con la actual (última capa del stack)
+discon <- function(BNBstk, puntos, xy = c(3, 2)) {
+  n_layers <- nlayers(BNBstk)
+  current  <- BNBstk[[n_layers]]
+  coords   <- puntos[, xy]
+  perdida  <- FALSE
+  for (j in 1:(n_layers - 1)) {
+    hist_layer   <- BNBstk[[j]]
+    clumps_hist  <- clump(hist_layer, directions = 4)
+    vals_hist    <- extract(clumps_hist, coords)
+    parches_hist <- na.omit(unique(vals_hist))
+    if (length(parches_hist) == 0) next
+    for (p in parches_hist) {
+      cells_patch  <- which(getValues(clumps_hist) == p)
+      vals_current <- getValues(current)[cells_patch]
+      if (all(vals_current == 0 | is.na(vals_current))) {
+        perdida <- TRUE
+        break
+      }
+    }
+    if (perdida) break
+  }
+  return(perdida)
+}
+
+# Detectar subpoblaciones desaparecidas por especie
+subpob_perdida <- sapply(seq_along(ne), function(i) {
+  if (nrow(csp[[i]]) == 0) return(NA)
+  tryCatch(discon(BNBstk, csp[[i]], xy = c(3, 2)), error = function(e) NA)
+})
+
 # Tabla de resultados
 umbral_HH <- 40   # % para declarar disminución continua de hábitat
 
@@ -198,17 +230,24 @@ Tablafrag <- data.frame(
   tax               = ne,
   FS_score          = sapply(sg, function(x) if (length(x) == 0) NA else round(as.numeric(x[[2]]), 0)),
   Frag_severa       = sapply(sg, function(x) if (length(x) == 0) NA else as.logical(x[[3]])),
-  pct_HH            = pct_hh
+  pct_HH            = pct_hh,
+  subpob_perdida    = subpob_perdida
 ) %>%
   mutate(
-    cod_fragmentacion      = case_when(is.na(Frag_severa) ~ "Unknown",
-                                       Frag_severa          ~ "YES",
-                                       TRUE                 ~ "NO"),
-    cod_dism_habitat       = case_when(is.na(pct_HH)  ~ "Unknown",
-                                       pct_HH >= umbral_HH ~ "YES",
-                                       TRUE                 ~ "NO"),
+    cod_fragmentacion      = case_when(is.na(Frag_severa)    ~ "Unknown",
+                                       Frag_severa            ~ "YES",
+                                       TRUE                   ~ "NO"),
+    cod_dism_habitat       = case_when(is.na(pct_HH)         ~ "Unknown",
+                                       pct_HH >= umbral_HH   ~ "YES",
+                                       TRUE                   ~ "NO"),
+    cod_dism_subpob        = case_when(is.na(subpob_perdida) ~ "Unknown",
+                                       subpob_perdida         ~ "YES",
+                                       TRUE                   ~ "NO"),
+    subpob_desap_sino      = case_when(is.na(subpob_perdida) ~ NA_character_,
+                                       subpob_perdida         ~ "SI",
+                                       TRUE                   ~ "NO"),
     fuente_dism_habitat    = ifelse(cod_dism_habitat == "Unknown", NA, "Inferred"),
-    fuente_dism_subpob     = "Inferred"
+    fuente_dism_subpob     = ifelse(cod_dism_subpob  == "Unknown", NA, "Inferred")
   )
 
 dir.create("resultados/eecorisk/fragmentacion_severa", recursive = TRUE, showWarnings = FALSE)
@@ -233,22 +272,21 @@ names(base_maestra) <- make.unique(names(base_maestra))
 
 base_maestra <- base_maestra %>%
   left_join(dplyr::select(Tablafrag, tax, FS_score, pct_HH,
-                           cod_fragmentacion, cod_dism_habitat,
-                           fuente_dism_habitat),
+                           cod_fragmentacion, cod_dism_habitat, cod_dism_subpob,
+                           subpob_desap_sino, fuente_dism_habitat, fuente_dism_subpob),
             by = c("NOMBRE CIENTÍFICO sin autor" = "tax")) %>%
   mutate(
-    `% PARCHES PEQUEÑOS Y AISLADOS`        = coalesce(`% PARCHES PEQUEÑOS Y AISLADOS`, FS_score),
-    `% HUELLA HUMANA EN LA AOO`            = coalesce(`% HUELLA HUMANA EN LA AOO`, pct_HH),
-    `CÓDIGO SIS FRAGMENTACIÓN`             = coalesce(`CÓDIGO SIS FRAGMENTACIÓN`, cod_fragmentacion),
-    `CÓDIGO SIS DISMINUCIÓN CONTINUA HÁBITAT` = coalesce(
-      `CÓDIGO SIS DISMINUCIÓN CONTINUA HÁBITAT`, cod_dism_habitat),
-    `CÓDIGO SIS FUENTE DE LA DISM. CONTINUA HÁBITAT` = coalesce(
-      `CÓDIGO SIS FUENTE DE LA DISM. CONTINUA HÁBITAT`, fuente_dism_habitat),
-    `CÓDIGO SIS FUENTE DE LA DISM. CONTINUA SUBPOBLACIONES` = coalesce(
-      `CÓDIGO SIS FUENTE DE LA DISM. CONTINUA SUBPOBLACIONES`, fuente_dism_subpob)
+    `% PARCHES PEQUEÑOS Y AISLADOS`                          = coalesce(`% PARCHES PEQUEÑOS Y AISLADOS`, FS_score),
+    `% HUELLA HUMANA EN LA AOO`                              = coalesce(`% HUELLA HUMANA EN LA AOO`, pct_HH),
+    `SUBPOBLACIONES DESAPARECIDAS`                           = coalesce(`SUBPOBLACIONES DESAPARECIDAS`, subpob_desap_sino),
+    `CÓDIGO SIS FRAGMENTACIÓN`                               = coalesce(`CÓDIGO SIS FRAGMENTACIÓN`, cod_fragmentacion),
+    `CÓDIGO SIS DISMINUCIÓN CONTINUA HÁBITAT`                = coalesce(`CÓDIGO SIS DISMINUCIÓN CONTINUA HÁBITAT`, cod_dism_habitat),
+    `CÓDIGO SIS DISMINUCIÓN CONTINUA SUBPOBLACIONES`         = coalesce(`CÓDIGO SIS DISMINUCIÓN CONTINUA SUBPOBLACIONES`, cod_dism_subpob),
+    `CÓDIGO SIS FUENTE DE LA DISM. CONTINUA HÁBITAT`         = coalesce(`CÓDIGO SIS FUENTE DE LA DISM. CONTINUA HÁBITAT`, fuente_dism_habitat),
+    `CÓDIGO SIS FUENTE DE LA DISM. CONTINUA SUBPOBLACIONES`  = coalesce(`CÓDIGO SIS FUENTE DE LA DISM. CONTINUA SUBPOBLACIONES`, fuente_dism_subpob)
   ) %>%
-  dplyr::select(-FS_score, -pct_HH, -cod_fragmentacion,
-                -cod_dism_habitat, -fuente_dism_habitat)
+  dplyr::select(-FS_score, -pct_HH, -cod_fragmentacion, -cod_dism_habitat,
+                -cod_dism_subpob, -subpob_desap_sino, -fuente_dism_habitat, -fuente_dism_subpob)
 
 write.csv(base_maestra, "SIS_Connect/base_maestra.csv",
           row.names = FALSE, fileEncoding = "UTF-8")
