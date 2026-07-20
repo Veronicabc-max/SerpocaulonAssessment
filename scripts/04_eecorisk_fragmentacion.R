@@ -586,7 +586,9 @@ base_maestra <- base_maestra %>%
   mutate(
     `% PARCHES PEQUEÑOS Y AISLADOS`                               = coalesce(`% PARCHES PEQUEÑOS Y AISLADOS`, FS_score),
     `% HUELLA HUMANA EN LA AOO`                                   = coalesce(`% HUELLA HUMANA EN LA AOO`, pct_HH),
-    `SUBPOBLACIONES DESAPARECIDAS`                                = coalesce(`SUBPOBLACIONES DESAPARECIDAS`, subpob_desap_sino),
+    `REPORTE SUBPOBLACIONES DESAPARECIDAS` =
+      coalesce(`REPORTE SUBPOBLACIONES DESAPARECIDAS`,
+               subpob_desap_sino),
     `CÓDIGO SIS FRAGMENTACIÓN`                                    = coalesce(`CÓDIGO SIS FRAGMENTACIÓN`, cod_fragmentacion),
     `DESCRIPCIÓN DE FRAGMENTACIÓN SIS`                            = coalesce(`DESCRIPCIÓN DE FRAGMENTACIÓN SIS`, desc_frag),
     `CÓDIGO SIS DISMINUCIÓN CONTINUA HÁBITAT`                    = coalesce(`CÓDIGO SIS DISMINUCIÓN CONTINUA HÁBITAT`, cod_dism_habitat),
