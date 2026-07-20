@@ -35,9 +35,19 @@ tipo_ap <- function(listado) {
 }
 
 num_palabras <- function(n) {
-  if (is.na(n) || n == 0) return("ninguna")
-  p <- c("una","dos","tres","cuatro","cinco","seis","siete","ocho","nueve","diez")
-  if (n >= 1 && n <= 10) p[n] else as.character(n)
+  
+  p <- c("una", "dos", "tres", "cuatro", "cinco",
+         "seis", "siete", "ocho", "nueve", "diez")
+  
+  ifelse(
+    is.na(n) | n == 0,
+    "ninguna",
+    ifelse(
+      n >= 1 & n <= 10,
+      p[n],
+      as.character(n)
+    )
+  )
 }
 
 # Construir campos de conservación
@@ -125,3 +135,4 @@ message("  - DESCRIPCIÓN TAMAÑO POBLACIONAL Y DEMOGRAFÍA: verificar si hay li
 message("  - LISTADO DE COLECCIONES EXSITU: consultar herbarios y jardines botánicos")
 message("  - DESCRIPCIÓN AMENAZAS: revisar y ajustar texto generado automáticamente")
 message("  - Agregar amenazas de cobertura de tierra cuando esté disponible la capa (script 05)")
+
