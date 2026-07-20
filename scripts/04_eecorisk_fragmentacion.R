@@ -514,10 +514,25 @@ mpio_dpto_sp <- function(sp) {
 }
 
 # Textos descriptivos SIS desde eecorisk
-num_palabras <- function(n) {
-  if (is.na(n) || n == 0) return("ninguna")
-  p <- c("una","dos","tres","cuatro","cinco","seis","siete","ocho","nueve","diez")
-  if (n >= 1 && n <= 10) p[n] else as.character(n)
+num_palabras <- function(n){
+  
+  palabras <- c(
+    "una","dos","tres","cuatro","cinco",
+    "seis","siete","ocho","nueve","diez"
+  )
+  
+  sapply(n, function(x){
+    
+    if(is.na(x) || x == 0)
+      return("ninguna")
+    
+    if(x >= 1 && x <= 10)
+      return(palabras[x])
+    
+    as.character(x)
+    
+  })
+  
 }
 
 subpop_res <- read.csv("resultados/ConR/subpoblaciones/subpoblaciones.csv")
