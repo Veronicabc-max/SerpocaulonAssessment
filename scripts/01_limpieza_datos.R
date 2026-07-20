@@ -44,3 +44,27 @@ write.csv(registros,
           "datos/registros/registros_limpios.csv",
           row.names = FALSE,
           fileEncoding = "UTF-8")
+
+# corregir registros
+library(dplyr)
+
+registros <- read.csv(
+  "datos/registros/registros_limpios.csv",
+  encoding = "UTF-8"
+)
+
+registros <- registros %>%
+  mutate(
+    ddlon = if_else(
+      pais == "Colombia" & ddlon > 0,
+      -ddlon,
+      ddlon
+    )
+  )
+
+write.csv(
+  registros,
+  "datos/registros/registros_limpios.csv",
+  row.names = FALSE,
+  fileEncoding = "UTF-8"
+)
