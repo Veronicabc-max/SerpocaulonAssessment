@@ -35,7 +35,35 @@
 
 library(sf)
 library(dplyr)
-library(osmdata)
+library(osmextract)
+library(sf)
+
+ruta_vias <- "datos/capas/amenazas/vias_colombia.gpkg"
+
+if (!file.exists(ruta_vias)) {
+  
+  message("Descargando vías principales de Colombia...")
+  
+  vias <- oe_get(
+    place = "Colombia",
+    layer = "lines",
+    force_download = TRUE,
+    quiet = FALSE
+  )
+  
+  vias <- vias[vias$highway %in%
+                 c("motorway",
+                   "trunk",
+                   "primary",
+                   "secondary"), ]
+  
+  st_write(vias, ruta_vias, delete_dsn = TRUE, quiet = TRUE)
+  
+} else {
+  
+  vias <- st_read(ruta_vias, quiet = TRUE)
+  
+}
 
 sf_use_s2(FALSE)
 
@@ -70,7 +98,7 @@ pct_subpob_amenaza <- function(puntos, amenaza_sf, subpop_res) {
   subpop_res %>%
     left_join(inter, by = "tax") %>%
     mutate(
-      n_subpob_amenazada = replace_na(n_subpob_amenazada, 0),
+      n_subpob_amenazada = dplyr::coalesce(n_subpob_amenazada, 0L),
       pct_afectadas      = round(100 * n_subpob_amenazada / subpop, 1)
     ) %>%
     dplyr::select(tax, n_subpob_amenazada, pct_afectadas)
@@ -94,23 +122,6 @@ mineria <- st_read("datos/capas/amenazas/Titulo_vigente_030122.shp", quiet = TRU
 
 af_mineria <- pct_subpob_amenaza(puntos_sf, mineria, subpop_res) %>%
   rename(pct_mineria = pct_afectadas, n_mineria = n_subpob_amenazada)
-
-# Vías (OpenStreetMap - descarga automática)
-ruta_vias <- "datos/capas/amenazas/vias_colombia.gpkg"
-if (!file.exists(ruta_vias)) {
-  message("Descargando vías de OpenStreetMap...")
-  bbox_col <- c(-79.0, -4.2, -66.8, 12.6)
-  vias_osm <- opq(bbox = bbox_col) %>%
-    add_osm_feature(key = "highway",
-                    value = c("motorway","trunk","primary","secondary")) %>%
-    osmdata_sf()
-  vias <- vias_osm$osm_lines %>%
-    dplyr::select(osm_id, highway) %>%
-    st_transform(4326)
-  st_write(vias, ruta_vias, quiet = TRUE)
-} else {
-  vias <- st_read(ruta_vias, quiet = TRUE)
-}
 
 # Buffer de 1 km alrededor de vías para capturar impacto
 vias_buf <- st_buffer(vias, dist = 0.009)   # ~1 km en grados decimales
