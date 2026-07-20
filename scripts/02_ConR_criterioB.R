@@ -158,9 +158,14 @@ if (!file.exists(ruta_mpios)) {
 }
 
 reg_mpios <- puntos_sf %>%
-  st_join(mpios %>% dplyr::select(municipio = NAME_2, departamento = NAME_1)) %>%
+  st_join(mpios, left = TRUE) %>%
   st_drop_geometry() %>%
-  dplyr::select(tax, id, municipio, departamento)
+  transmute(
+    tax,
+    id,
+    municipio = NAME_2,
+    departamento = NAME_1
+  )
 
 write.csv(reg_mpios, "resultados/ConR/criterioB/registros_municipios_dptos.csv",
           row.names = FALSE, fileEncoding = "UTF-8")
@@ -217,3 +222,4 @@ base_maestra <- base_maestra %>%
 
 write.csv(base_maestra, "SIS_Connect/base_maestra.csv",
           row.names = FALSE, fileEncoding = "UTF-8")
+
