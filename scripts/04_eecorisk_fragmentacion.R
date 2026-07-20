@@ -191,36 +191,62 @@ pct_hh <- sapply(seq_along(ne), function(i) {
   round(mean(getValues(hh_mask), na.rm = TRUE), 0)
 })
 
+# Precalcular clumps históricos (solo una vez)
+clumps_hist_list <- lapply(1:(nlayers(BNBstk) - 1), function(j) {
+  
+  clp <- clump(BNBstk[[j]], directions = 4)
+  
+  list(
+    clump = clp,
+    vals = getValues(clp)
+  )
+  
+})
+
+vals_current <- getValues(BNBstk[[nlayers(BNBstk)]])
+
 # Función discon: detecta si alguna subpoblación (parche con ocurrencias) desapareció
 # comparando capas históricas BNB con la actual (última capa del stack)
-discon <- function(BNBstk, puntos, xy = c(3, 2)) {
-  n_layers <- nlayers(BNBstk)
-  current  <- BNBstk[[n_layers]]
-  coords   <- puntos[, xy]
-  perdida  <- FALSE
-  for (j in 1:(n_layers - 1)) {
-    hist_layer   <- BNBstk[[j]]
-    clumps_hist  <- clump(hist_layer, directions = 4)
-    vals_hist    <- extract(clumps_hist, coords)
-    parches_hist <- na.omit(unique(vals_hist))
-    if (length(parches_hist) == 0) next
+discon <- function(clumps_hist_list, vals_current, puntos, xy = c(3,2)) {
+  
+  coords <- as.matrix(puntos[, xy])
+  
+  for (j in seq_along(clumps_hist_list)) {
+    
+    clump_raster <- clumps_hist_list[[j]]$clump
+    vals_clumps  <- clumps_hist_list[[j]]$vals
+    
+    vals_hist <- extract(clump_raster, coords)
+    
+    parches_hist <- unique(na.omit(vals_hist))
+    
+    if (length(parches_hist) == 0)
+      next
+    
     for (p in parches_hist) {
-      cells_patch  <- which(getValues(clumps_hist) == p)
-      vals_current <- getValues(current)[cells_patch]
-      if (all(vals_current == 0 | is.na(vals_current))) {
-        perdida <- TRUE
-        break
-      }
+      
+      idx <- vals_clumps == p
+      
+      if (all(vals_current[idx] == 0 | is.na(vals_current[idx])))
+        return(TRUE)
+      
     }
-    if (perdida) break
   }
-  return(perdida)
+  
+  FALSE
 }
 
 # Detectar subpoblaciones desaparecidas por especie
 subpob_perdida <- sapply(seq_along(ne), function(i) {
-  if (nrow(csp[[i]]) == 0) return(NA)
-  tryCatch(discon(BNBstk, csp[[i]], xy = c(3, 2)), error = function(e) NA)
+  
+  if (nrow(csp[[i]]) == 0)
+    return(NA)
+  
+  discon(clumps_hist_list,
+         vals_current,
+         csp[[i]],
+         xy = c(3,2))
+  
 })
 
 # Tabla de resultados
