@@ -90,37 +90,209 @@ elev_min <- registros %>% filter(!is.na(elev_msnm)) %>%
 elev_max <- registros %>% filter(!is.na(elev_msnm)) %>%
   group_by(tax) %>% summarise(MaxElv = max(elev_msnm), .groups = "drop")
 
-# Tabla base para eecorisk: especie, Latitud, Longitud, umbral, disper, MinElv, MaxElv
+# Tabla base para eecorisk
+
 corsp <- registros %>%
-  dplyr::select(especie = tax, Latitud = ddlat, Longitud = ddlon, umbral, disper) %>%
+  dplyr::select(
+    especie = tax,
+    Latitud = ddlat,
+    Longitud = ddlon,
+    umbral,
+    disper
+  ) %>%
   left_join(elev_min, by = c("especie" = "tax")) %>%
   left_join(elev_max, by = c("especie" = "tax"))
 
-ne   <- unique(corsp$especie)
-dsp  <- lapply(ne, function(sp) corsp[corsp$especie == sp, ])
-csp  <- lapply(dsp, na.omit)
+# Preparar objetos por especie
+
+ne <- unique(corsp$especie)
+
+dsp <- lapply(ne, function(sp) {
+  corsp[corsp$especie == sp, ]
+})
+
+csp <- lapply(dsp, na.omit)
 csp1 <- csp
-for (i in seq_along(ne)) {
-  if (nrow(csp[[i]]) < 1) next
-  coordinates(csp1[[i]]) <- c("Longitud", "Latitud")
+
+for(i in seq_along(ne)){
+  
+  if(nrow(csp[[i]]) == 0) next
+  
+  coordinates(csp1[[i]]) <- c("Longitud","Latitud")
+  
 }
 
-# Función AHO: área de hábitat disponible filtrada por elevación y puntos
-AHO <- function(model, puntos, xy, bufferSize = 0.054, bufferPoints = TRUE, elv) {
-  if (!inherits(model, "RasterLayer")) stop("model debe ser RasterLayer")
-  elvg  <- resample(crop(elv, model), model)
+# Parámetros que no cambian entre especies
+
+resx <- xres(SB1000)
+resy <- yres(SB1000)
+
+# Objeto donde se almacenará el AOH
+
+AOOok <- vector("list", length(ne))
+
+################################################################################
+# Función AHO original
+################################################################################
+
+# AHO <- function(model,
+#                 puntos,
+#                 xy,
+#                 bufferSize = 0.054,
+#                 bufferPoints = TRUE,
+#                 elv){
+#   
+#   if(!inherits(model,"RasterLayer"))
+#     stop("model debe ser RasterLayer")
+#   
+#   elvg <- resample(
+#     crop(elv, model),
+#     model
+#   )
+#   
+#   elvgv <- getValues(elvg)
+#   
+#   model[which(elvgv < as.numeric(unique(puntos[,6])) - 300)] <- 0
+#   model[which(elvgv > as.numeric(unique(puntos[,7])) + 300)] <- 0
+#   
+#   groups <- clump(
+#     model,
+#     directions = 4
+#   )
+#   
+#   pts_sf <- st_as_sf(
+#     puntos,
+#     coords = names(puntos)[xy],
+#     crs = 4326
+#   )
+#   
+#   if(bufferPoints){
+#     
+#     # Proyectar temporalmente a metros
+#     pts_m <- st_transform(pts_sf, 3857)
+#     
+#     pbf <- st_buffer(
+#       pts_m,
+#       dist = bufferSize
+#     )
+#     
+#     # Regresar a WGS84
+#     pbf <- st_transform(pbf, 4326)
+#     
+#   }else{
+#     
+#     pbf <- pts_sf
+#     
+#   }
+#   
+#   pex <- extract(
+#     groups,
+#     as(pbf,"Spatial")
+#   )
+#   
+#   parches <- na.omit(
+#     unique(
+#       pex[[1]]
+#     )
+#   )
+#   
+#   pexok <- match(
+#     getValues(groups),
+#     parches
+#   )
+#   
+#   groups[which(pexok > 0)] <- 1
+#   groups[which(is.na(pexok))] <- 0
+#   
+#   return(groups)
+#   
+# }
+
+
+# Funcion AHO optimizada
+AHO_fast <- function(model,
+                     puntos,
+                     xy,
+                     bufferSize = 6000,
+                     bufferPoints = TRUE,
+                     elv){
+  
+  if(!inherits(model, "RasterLayer"))
+    stop("model debe ser RasterLayer")
+  
+  ## Elevación
+  elvg <- resample(
+    crop(elv, model),
+    model
+  )
+  
   elvgv <- getValues(elvg)
-  model[which(elvgv < as.numeric(unique(puntos[, 6])) - 300)] <- 0
-  model[which(elvgv > as.numeric(unique(puntos[, 7])) + 300)] <- 0
-  groups  <- clump(model, directions = 4)
-  pts_sf  <- st_as_sf(puntos, coords = names(puntos)[xy], crs = st_crs(model))
-  pbf     <- if (bufferPoints) st_buffer(pts_sf, dist = bufferSize) else pts_sf
-  pex     <- extract(groups, as(pbf, "Spatial"))
-  parches <- na.omit(unique(pex[[1]]))
-  pexok   <- match(getValues(groups), parches)
-  groups[which(pexok > 0)]   <- 1
-  groups[which(is.na(pexok))] <- 0
+  
+  model[elvgv < unique(puntos[,6]) - 300] <- 0
+  model[elvgv > unique(puntos[,7]) + 300] <- 0
+  
+  ## Parches
+  groups <- clump(
+    model,
+    directions = 4
+  )
+  
+  ## Puntos
+  pts_sf <- st_as_sf(
+    puntos,
+    coords = names(puntos)[xy],
+    crs = 4326
+  )
+  
+  if(bufferPoints){
+    
+    pts_sf <- st_transform(pts_sf, 3857)
+    
+    pbf <- st_buffer(
+      pts_sf,
+      dist = bufferSize
+    )
+    
+    pbf <- st_transform(pbf, 4326)
+    
+  }else{
+    
+    pbf <- pts_sf
+    
+  }
+  
+  ## Rasterizar buffer (mucho más rápido que extract)
+  pbf_sp <- as(pbf, "Spatial")
+  
+  mask_buf <- rasterize(
+    pbf_sp,
+    groups,
+    field = 1,
+    background = NA
+  )
+  
+  ## IDs de parches dentro del buffer
+  ids <- unique(
+    getValues(
+      mask(
+        groups,
+        mask_buf
+      )
+    )
+  )
+  
+  ids <- ids[!is.na(ids)]
+  
+  gval <- getValues(groups)
+  
+  groups[] <- ifelse(
+    gval %in% ids,
+    1,
+    0
+  )
+  
   return(groups)
+  
 }
 
 # Función sfrag: % parches pequeños y aislados
@@ -150,22 +322,52 @@ sfrag <- function(BNB, puntos, xy = c(2, 3), bufferSize = 20, bufferPoints = TRU
 }
 
 # Calcular AHO por especie
-vs1000 <- getValues(SB1000); cells <- seq_along(vs1000)
-AOOok  <- vector("list", length(ne))
+pb <- txtProgressBar(min = 0,
+                     max = length(ne),
+                     style = 3)
 
-pb <- txtProgressBar(min = 0, max = length(ne), style = 3)
-for (i in seq_along(ne)) {
+for(i in seq_along(ne)){
+  
   setTxtProgressBar(pb, i)
-  message(" ", ne[i])
-  if (nrow(csp[[i]]) == 0) next
-  cex     <- extract(SB1000, csp1[[i]], cell = TRUE)
-  cells1  <- cells[na.omit(-cex[, 1])]
-  SB1000p <- SB1000; SB1000p[cex[, 1]] <- 1; SB1000p[cells1] <- 0
-  SP      <- rasterToPolygons(SB1000p, dissolve = TRUE, fun = function(x) x > 0)
-  SB10E   <- crop(SB10, SP)
-  SB10E[SB10E == 2] <- 0; SB10E[SB10E > 1] <- 1; SB10E[SB10E == 3] <- 0
-  AOOok[[i]] <- AHO(SB10E, csp[[i]], xy = c(3, 2),
-                    bufferSize = 6000, bufferPoints = TRUE, elv = elv)
+  
+  message(ne[i])
+  
+  if(nrow(csp[[i]]) == 0) next
+  
+  cex <- extract(
+    SB1000,
+    csp1[[i]],
+    cell = TRUE
+  )
+  
+  ext_sp <- extentFromCells(
+    SB1000,
+    unique(cex[,1])
+  )
+  
+  ext_sp@xmin <- ext_sp@xmin - 2 * resx
+  ext_sp@xmax <- ext_sp@xmax + 2 * resx
+  ext_sp@ymin <- ext_sp@ymin - 2 * resy
+  ext_sp@ymax <- ext_sp@ymax + 2 * resy
+  
+  SB10E <- crop(
+    SB10,
+    ext_sp
+  )
+  
+  SB10E[SB10E == 2] <- 0
+  SB10E[SB10E > 1]  <- 1
+  SB10E[SB10E == 3] <- 0
+  
+  AOOok[[i]] <- AHO_fast(
+    SB10E,
+    csp[[i]],
+    xy = c(3,2),
+    bufferSize = 6000,
+    bufferPoints = TRUE,
+    elv = elv
+  )
+  
 }
 close(pb)
 
@@ -183,12 +385,19 @@ close(pb2)
 
 # % Huella humana en el AHO por especie
 pct_hh <- sapply(seq_along(ne), function(i) {
-  if (is.null(AOOok[[i]])) return(NA)
+  
+  if (is.null(AOOok[[i]]))
+    return(NA)
+  
   aoo_mask <- AOOok[[i]]
+  
   aoo_mask[aoo_mask == 0] <- NA
+  
   hh_crop <- crop(hh, aoo_mask)
   hh_mask <- mask(hh_crop, aoo_mask)
+  
   round(mean(getValues(hh_mask), na.rm = TRUE), 0)
+  
 })
 
 # Precalcular clumps históricos (solo una vez)
@@ -242,11 +451,12 @@ subpob_perdida <- sapply(seq_along(ne), function(i) {
   if (nrow(csp[[i]]) == 0)
     return(NA)
   
-  discon(clumps_hist_list,
-         vals_current,
-         csp[[i]],
-         xy = c(3,2))
-  
+  discon(
+    clumps_hist_list = clumps_hist_list,
+    vals_current = vals_current,
+    puntos = csp[[i]],
+    xy = c(3, 2)
+  )
 })
 
 # Tabla de resultados
