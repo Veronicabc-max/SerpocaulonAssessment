@@ -223,9 +223,21 @@ mpio_dpto_sp <- function(sp) {
 }
 
 num_palabras <- function(n) {
-  if (is.na(n) || n == 0) return("ninguna")
-  p <- c("una","dos","tres","cuatro","cinco","seis","siete","ocho","nueve","diez")
-  if (n >= 1 && n <= 10) p[n] else as.character(n)
+  
+  p <- c("una","dos","tres","cuatro","cinco",
+         "seis","siete","ocho","nueve","diez")
+  
+  res <- ifelse(
+    is.na(n) | n == 0,
+    "ninguna",
+    ifelse(
+      n >= 1 & n <= 10,
+      p[n],
+      as.character(n)
+    )
+  )
+  
+  return(res)
 }
 
 amenazas_sp <- amenazas_sp %>%
@@ -250,6 +262,8 @@ amenazas_sp <- amenazas_sp %>%
   ))
 
 dir.create("resultados/amenazas", recursive = TRUE, showWarnings = FALSE)
+amenazas_sp <- amenazas_sp %>%
+  dplyr::select(-codigos_lista, -alcances_lista)
 write.csv(amenazas_sp, "resultados/amenazas/tabla_amenazas.csv", row.names = FALSE)
 
 # Actualizar base_maestra.csv
