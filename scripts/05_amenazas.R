@@ -67,9 +67,22 @@ if (!file.exists(ruta_vias)) {
 
 sf_use_s2(FALSE)
 
-registros  <- read.csv("datos/registros/registros_limpios.csv", encoding = "UTF-8") %>%
+registros <- read.csv("datos/registros/registros_limpios.csv",
+  encoding = "UTF-8") %>%
   filter(!is.na(ddlat), !is.na(ddlon))
-puntos_sf  <- st_as_sf(registros, coords = c("ddlon", "ddlat"), crs = 4326)
+subpoblaciones_reg <- read.csv(
+  "resultados/ConR/subpoblaciones/subpoblaciones_registros.csv",
+  encoding = "UTF-8")
+registros <- registros %>%
+  left_join(
+    subpoblaciones_reg %>%
+      select(tax, fila_excel, subpop_id),
+    by = c("tax", "fila_excel")
+  )
+puntos_sf <- st_as_sf(  registros,
+  coords = c("ddlon", "ddlat"),
+  crs = 4326)
+
 ruta_mpios_csv <- "resultados/ConR/criterioB/registros_municipios_dptos.csv"
 if (!file.exists(ruta_mpios_csv))
   stop("Archivo no encontrado: ", ruta_mpios_csv,
@@ -78,6 +91,9 @@ reg_mpios  <- read.csv(ruta_mpios_csv, encoding = "UTF-8")
 subpop_res <- read.csv("resultados/ConR/subpoblaciones/subpoblaciones.csv")
 base_eeco  <- read.csv("resultados/eecorisk/fragmentacion_severa/resultados_eecorisk.csv",
                        encoding = "UTF-8")
+subpoblaciones <- read.csv(
+  "resultados/ConR/subpoblaciones/subpoblaciones_registros.csv",
+  stringsAsFactors = FALSE)
 
 # Función: % subpoblaciones afectadas y código de alcance
 alcance_sis <- function(pct_afectadas) {
@@ -90,44 +106,133 @@ alcance_sis <- function(pct_afectadas) {
 }
 
 # Función: intersección de puntos con una capa de amenaza
-pct_subpob_amenaza <- function(puntos, amenaza_sf, subpop_res) {
-  inter <- st_intersection(puntos, amenaza_sf) %>%
-    st_drop_geometry() %>%
-    distinct(tax, .keep_all = FALSE) %>%
-    count(tax, name = "n_subpob_amenazada")
+pct_subpob_amenaza <- function(puntos, amenaza_sf, subpop_res){
+  
+  ## registros afectados
+  inter <- st_join(
+    puntos,
+    amenaza_sf,
+    join = st_intersects,
+    left = FALSE
+  ) %>%
+    st_drop_geometry()
+  
+  ## si ninguna especie intersecta la amenaza
+  if(nrow(inter) == 0){
+    
+    return(
+      
+      subpop_res %>%
+        transmute(
+          tax,
+          n_subpob_amenazada = 0L,
+          pct_afectadas = 0
+        )
+      
+    )
+    
+  }
+  
+  ## contar subpoblaciones afectadas
+  inter <- inter %>%
+    distinct(tax, subpop_id)
+  
+  resumen <- inter %>%
+    count(
+      tax,
+      name = "n_subpob_amenazada"
+    )
+  
   subpop_res %>%
-    left_join(inter, by = "tax") %>%
-    mutate(
-      n_subpob_amenazada = dplyr::coalesce(n_subpob_amenazada, 0L),
-      pct_afectadas      = round(100 * n_subpob_amenazada / subpop, 1)
+    
+    left_join(
+      resumen,
+      by = "tax"
     ) %>%
-    dplyr::select(tax, n_subpob_amenazada, pct_afectadas)
+    
+    mutate(
+      
+      n_subpob_amenazada =
+        dplyr::coalesce(
+          n_subpob_amenazada,
+          0L
+        ),
+      
+      pct_afectadas =
+        round(
+          100 *
+            n_subpob_amenazada /
+            subpop,
+          1
+        )
+      
+    ) %>%
+    
+    select(
+      tax,
+      n_subpob_amenazada,
+      pct_afectadas
+    )
+  
 }
 
 # Petróleo y gas (ANH)
-petroleo <- st_read("datos/capas/amenazas/Tierras_Junio_170625.shp", quiet = TRUE) %>%
+petroleo <- st_read(
+  "datos/capas/amenazas/Tierras_Junio_170625.shp",
+  quiet = TRUE
+) %>%
   st_transform(4326) %>%
   st_make_valid() %>%
-  filter(CLASIFICAC == "ASIGNADA")   # solo contratos activos
+  filter(CLASIFICAC == "ASIGNADA")
 
-af_petroleo <- pct_subpob_amenaza(puntos_sf, petroleo, subpop_res) %>%
-  rename(pct_petroleo = pct_afectadas, n_petroleo = n_subpob_amenazada)
+af_petroleo <-
+  pct_subpob_amenaza(
+    puntos_sf,
+    petroleo,
+    subpop_res
+  ) %>%
+  rename(
+    pct_petroleo = pct_afectadas,
+    n_petroleo = n_subpob_amenazada
+  )
 
 # Minería de metales (ANM)
 # NOTA: capa de 2022, actualizar cuando esté disponible versión más reciente
-mineria <- st_read("datos/capas/amenazas/Titulo_vigente_030122.shp", quiet = TRUE) %>%
+mineria <- st_read(
+  "datos/capas/amenazas/Titulo_vigente_030122.shp",
+  quiet = TRUE
+) %>%
   st_transform(4326) %>%
   st_make_valid() %>%
   filter(ESTADO == "Activo")
 
-af_mineria <- pct_subpob_amenaza(puntos_sf, mineria, subpop_res) %>%
-  rename(pct_mineria = pct_afectadas, n_mineria = n_subpob_amenazada)
+af_mineria <-
+  pct_subpob_amenaza(
+    puntos_sf,
+    mineria,
+    subpop_res
+  ) %>%
+  rename(
+    pct_mineria = pct_afectadas,
+    n_mineria = n_subpob_amenazada
+  )
 
 # Buffer de 1 km alrededor de vías para capturar impacto
-vias_buf <- st_buffer(vias, dist = 0.009)   # ~1 km en grados decimales
+vias_buf <- vias %>%
+  st_transform(9377) %>%
+  st_buffer(1000) %>%
+  st_transform(4326)
 
-af_vias <- pct_subpob_amenaza(puntos_sf, vias_buf, subpop_res) %>%
-  rename(pct_vias = pct_afectadas, n_vias = n_subpob_amenazada)
+af_vias <-
+  pct_subpob_amenaza(
+    puntos_sf,
+    vias_buf,
+    subpop_res
+  ) %>%
+  rename(
+    pct_vias = pct_afectadas,
+    n_vias = n_subpob_amenazada
+  )
 
 # Cobertura de la tierra (IDEAM 2022) - CLC Corine Land Cover
 # Archivo ~4 GB, no está en GitHub; descargar desde portal IDEAM y guardar en:
@@ -242,24 +347,102 @@ num_palabras <- function(n) {
 
 amenazas_sp <- amenazas_sp %>%
   mutate(mpios = sapply(tax, mpio_dpto_sp)) %>%
-  mutate(desc_amenazas = case_when(
-    !tiene_hab & !tiene_petroleo & !tiene_mineria & !tiene_vias &
-      !tiene_cultivos & !tiene_ganaderia & !tiene_urbano ~
-      "Las subpoblaciones conocidas de la especie se encuentran en hábitats poco perturbados por actividades humanas.",
-    TRUE ~ paste0(
-      tools::toTitleCase(num_palabras(subpop)), " subpoblacion",
-      ifelse(subpop == 1, " conocida", "es conocidas"),
-      " de la especie se encuentran en sitios con destrucción y degradación de su hábitat. ",
-      "Las alteraciones del hábitat se deben principalmente a",
-      ifelse(tiene_urbano,    " la expansión urbana,", ""),
-      ifelse(tiene_cultivos,  " la agricultura (cultivos transitorios y permanentes),", ""),
-      ifelse(tiene_ganaderia, " la ganadería,", ""),
-      ifelse(tiene_petroleo,  " la extracción de hidrocarburos (petróleo y/o gas),", ""),
-      ifelse(tiene_mineria,   " la minería de metales,", ""),
-      ifelse(tiene_vias,      " la construcción de infraestructura vial,", ""),
-      " en los municipios de ", mpios, "."
-    )
-  ))
+  rowwise() %>%
+  mutate(
+    
+    amenazas_txt = paste(
+      
+      c(
+        
+        if(n_urbano > 0)
+          paste0(
+            n_urbano," de ",subpop,
+            " subpoblaciones (",
+            pct_urbano,
+            "%) presentan expansión urbana"
+          ),
+        
+        if(n_cultivos > 0)
+          paste0(
+            n_cultivos," de ",subpop,
+            " subpoblaciones (",
+            pct_cultivos,
+            "%) presentan actividades agrícolas"
+          ),
+        
+        if(n_ganaderia > 0)
+          paste0(
+            n_ganaderia," de ",subpop,
+            " subpoblaciones (",
+            pct_ganaderia,
+            "%) presentan actividades ganaderas"
+          ),
+        
+        if(n_petroleo > 0)
+          paste0(
+            n_petroleo," de ",subpop,
+            " subpoblaciones (",
+            pct_petroleo,
+            "%) coinciden con áreas de exploración y explotación de hidrocarburos"
+          ),
+        
+        if(n_mineria > 0)
+          paste0(
+            n_mineria," de ",subpop,
+            " subpoblaciones (",
+            pct_mineria,
+            "%) coinciden con títulos mineros activos"
+          ),
+        
+        if(n_vias > 0)
+          paste0(
+            n_vias," de ",subpop,
+            " subpoblaciones (",
+            pct_vias,
+            "%) presentan influencia de infraestructura vial"
+          )
+        
+      ),
+      
+      collapse = "; "
+      
+    ),
+    
+    desc_amenazas =
+      
+      if(
+        
+        amenazas_txt == ""
+        
+      ){
+        
+        "Las subpoblaciones conocidas de la especie se encuentran en hábitats con baja evidencia de perturbación antrópica según las capas espaciales evaluadas."
+        
+      }else{
+        
+        paste0(
+          
+          "Se conocen ",
+          
+          subpop,
+          
+          ifelse(subpop==1,
+                 " subpoblación.",
+                 " subpoblaciones."),
+          
+          " Del total conocido, ",
+          
+          amenazas_txt,
+          
+          ". Estas actividades generan pérdida, degradación y fragmentación del hábitat, reduciendo la calidad del ambiente disponible para la especie en diferentes sectores de su distribución conocida."
+          
+        )
+        
+      }
+    
+  ) %>%
+  ungroup() %>%
+  select(-amenazas_txt)
 
 dir.create("resultados/amenazas", recursive = TRUE, showWarnings = FALSE)
 amenazas_sp <- amenazas_sp %>%

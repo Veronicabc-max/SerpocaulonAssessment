@@ -22,6 +22,115 @@ dirs_out <- c("resultados/ConR/EOO",
               "resultados/ConR/criterioB")
 invisible(lapply(dirs_out, dir.create, recursive = TRUE, showWarnings = FALSE))
 
+# crear mi propia forma de calcular subpoblaciones modificando conR para que cada subpoblacion tenga un id
+subpop.comp.records <- function(
+    XY,
+    resol_sub_pop = NULL,
+    proj_type = "cea"
+){
+  
+  if(is.null(resol_sub_pop))
+    stop("Debe indicar resol_sub_pop")
+  
+  proj_type <- ConR:::proj_crs(proj_type)
+  
+  if(is.data.frame(resol_sub_pop)){
+    
+    XY <- merge(
+      XY,
+      resol_sub_pop,
+      by = "tax",
+      all.x = TRUE,
+      sort = FALSE
+    )
+    
+    XY <- XY[,c("ddlat","ddlon","tax","radius")]
+    
+  }else{
+    
+    XY$radius <- resol_sub_pop
+    
+  }
+  
+  lista <- ConR:::coord.check(
+    XY = XY,
+    listing = TRUE,
+    proj_type = proj_type
+  )[[1]]
+  
+  salida <- vector("list", length(lista))
+  
+  for(i in seq_along(lista)){
+    
+    datos <- lista[[i]]
+    
+    ## exactamente igual que ConR
+    puntos <- sf::st_as_sf(
+      datos,
+      coords = c("ddlon","ddlat"),
+      crs = 4326
+    )
+    
+    puntos <- sf::st_transform(
+      puntos,
+      proj_type
+    )
+    
+    buffers <- sf::st_buffer(
+      puntos,
+      dist = unique(datos$radius) * 1000
+    )
+    
+    buffers <- sf::st_union(buffers)
+    
+    buffers <- sf::st_cast(
+      buffers,
+      "POLYGON"
+    )
+    
+    subpop <- sf::st_as_sf(
+      data.frame(
+        geometry = buffers
+      )
+    )
+    
+    subpop$subpop_id <- seq_len(nrow(subpop))
+    
+    ## asignar registros a subpoblaciones
+    relacion <- sf::st_intersects(
+      puntos,
+      subpop
+    )
+    
+    puntos$subpop_id <-
+      sapply(relacion, `[`, 1)
+    
+    puntos <- sf::st_drop_geometry(puntos)
+    
+    salida[[i]] <- puntos
+    
+  }
+  
+  registros <- dplyr::bind_rows(salida)
+  
+  resumen <-
+    
+    registros %>%
+    
+    dplyr::group_by(tax) %>%
+    
+    dplyr::summarise(
+      subpop = dplyr::n_distinct(subpop_id),
+      .groups = "drop"
+    )
+  
+  list(
+    number_subpop = resumen,
+    registros = registros
+  )
+  
+}
+
 # Cargar registros limpios
 # ConR requiere columnas en este orden: ddlat, ddlon, tax
 registros <- read.csv("datos/registros/registros_limpios.csv", encoding = "UTF-8")
@@ -102,11 +211,94 @@ loc <- locations.comp(MyData,
 write.csv(loc$locations, "resultados/ConR/criterioB/localidades.csv", row.names = FALSE)
 
 # Calcular subpoblaciones (resolución 5 km)
-subpop <- subpop.comp(MyData,
-                      resol_sub_pop = 5,
-                      show_progress = TRUE)
+subpop <- subpop.comp(
+  MyData,
+  resol_sub_pop = 5,
+  export_shp = TRUE,
+  show_progress = TRUE
+)
 
-write.csv(subpop, "resultados/ConR/subpoblaciones/subpoblaciones.csv", row.names = FALSE)
+# Registros como sf
+puntos_sf <- registros %>%
+  filter(!is.na(ddlat), !is.na(ddlon)) %>%
+  st_as_sf(
+    coords = c("ddlon", "ddlat"),
+    crs = 4326
+  )
+
+# Mismo CRS de las subpoblaciones
+puntos_sf <- st_transform(
+  puntos_sf,
+  st_crs(subpop$poly_subpop)
+)
+
+# Identificador de subpoblación
+subpop$poly_subpop$subpop_id <-
+  seq_len(nrow(subpop$poly_subpop))
+
+##----------------------------------------------------------
+## Asignar registros a subpoblaciones (por especie)
+##----------------------------------------------------------
+
+subpop$poly_subpop$subpop_id <- ave(
+  seq_len(nrow(subpop$poly_subpop)),
+  subpop$poly_subpop$tax,
+  FUN = seq_along
+)
+
+lista_registros <- split(puntos_sf, puntos_sf$tax)
+lista_poligonos <- split(subpop$poly_subpop, subpop$poly_subpop$tax)
+
+registros_subpop <-
+  
+  purrr::map_dfr(
+    
+    names(lista_registros),
+    
+    function(sp){
+      
+      puntos <- lista_registros[[sp]]
+      
+      poligonos <- lista_poligonos[[sp]]
+      
+      if(is.null(poligonos))
+        return(NULL)
+      
+      salida <-
+        
+        sf::st_join(
+          puntos,
+          poligonos[, "subpop_id"],
+          left = FALSE,
+          join = sf::st_intersects
+        )
+      
+      sf::st_drop_geometry(salida)
+      
+    }
+    
+  )
+
+registros_subpop %>%
+       group_by(tax) %>%
+       summarise(
+           subpop_calculadas = n_distinct(subpop_id)) %>%
+       left_join(
+           subpop$number_subpop,
+           by = "tax" ) %>%
+       mutate(coincide = subpop_calculadas == subpop)
+
+write.csv(
+  registros_subpop,
+  "resultados/ConR/subpoblaciones/subpoblaciones_registros.csv",
+  row.names = FALSE
+)
+
+write.csv(
+  subpop$number_subpop,
+  "resultados/ConR/subpoblaciones/subpoblaciones.csv",
+  row.names = FALSE
+)
 
 # Evaluación Criterio B completa
 # criterion_B calcula todo internamente para garantizar consistencia entre parámetros.
