@@ -528,6 +528,17 @@ Tallfg <- Filter(Negate(is.null), lapply(seq_along(sg), function(i) {
   cbind(Especie = ne[i], as.data.frame(sg[[i]][[1]]))
 }))
 sapply(Tallfg, ncol)
+
+for(i in seq_along(Tallfg)){
+  names(Tallfg[[i]]) <- c(
+    "Especie",
+    "Area km^2",
+    "Dist_PMC m",
+    "Isolated",
+    "Small"
+  )
+}
+
 write.csv(do.call(rbind, Tallfg),
           "resultados/eecorisk/fragmentacion_severa/detalle_parches.csv",
           row.names = FALSE)
@@ -637,6 +648,9 @@ base_maestra <- base_maestra %>%
                 -cod_dism_subpob, -subpob_desap_sino, -fuente_dism_habitat, -fuente_dism_subpob,
                 -desc_frag, -desc_dism_hab, -desc_dism_subpob,
                 -tendencia, -fuente_tendencia, -no_amenazas, -amenazas_descon)
+
+Tablafrag$no_amenazas <- Tablafrag$no_amenazas == "TRUE"
+Tablafrag$amenazas_descon <- Tablafrag$amenazas_descon == "TRUE"
 
 write.csv(base_maestra, "SIS_Connect/base_maestra.csv",
           row.names = FALSE, fileEncoding = "UTF-8")
