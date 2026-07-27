@@ -1,22 +1,18 @@
-# =============================================================================
 # Evaluación IUCN - Serpocaulon spp. Colombia
 # Script 01: Limpieza y preparación de registros
-# Autoras: Maria Judith Carmona
-
+# Autoras: Maria Judith Carmona Higuita
 
 library(readxl)
 library(dplyr)
 
-
 # 1. Leer archivo original
 
-
-raw <- read_excel("datos/registros/Copia_Puntos_georreferenciados.xlsx") %>%
-  mutate(fila_excel = row_number())
-
+# raw <- read_excel("datos/registros/Copia_Puntos_georreferenciados.xlsx") %>%
+#   mutate(fila_excel = row_number()) # versión previa
+raw <- read_excel("datos/registros/Coordenadas_Serpocaulon.xlsx") %>%
+  mutate(fila_excel = row_number()) # versión de 27/07/2026
 
 # 2. Seleccionar variables de interés
-
 
 registros <- raw %>%
   select(
@@ -24,11 +20,17 @@ registros <- raw %>%
     
     tax = Species,
     
-    lat_corr = `Latitud_corregida (Y)`,
-    lon_corr = `Longitud_corregida (X)`,
+    # lat_corr = `Latitud_corregida (Y)`,
+    # lon_corr = `Longitud_corregida (X)`,
+    # 
+    # lat_orig = Latitud,
+    # lon_orig = Longitud,
     
-    lat_orig = Latitud,
-    lon_orig = Longitud,
+    lat_corr = Latitud,
+    lon_corr = Longitud,
+    
+    lat_orig = `N original`,
+    lon_orig = `W original`,
     
     elev_msnm = `Elevación (msnm)`,
     
@@ -46,24 +48,17 @@ registros <- raw %>%
     id = ID
   )
 
-
 # 3. Excluir híbridos
-
 
 registros <- registros %>%
   filter(
     !tax %in% c(
       "Serpocaulon x manizalense",
-      "Serpocaulon x semipinnatifidum"
-    )
-  )
-
+      "Serpocaulon x semipinnatifidum"))
 
 # 4. Limpiar coordenadas
 
-
-registros <- registros %>%
-  mutate(
+registros <- registros %>% mutate(
     
     # eliminar espacios
     lat_corr = na_if(trimws(lat_corr), ""),
@@ -88,27 +83,19 @@ registros <- registros %>%
     
     # usar coordenada corregida; si no existe usar la original
     ddlat = coalesce(lat_corr, lat_orig),
-    ddlon = coalesce(lon_corr, lon_orig)
-  )
-
+    ddlon = coalesce(lon_corr, lon_orig))
 
 # 5. Corregir longitudes positivas para Colombia
 
-
 registros <- registros %>%
-  mutate(
-    ddlon = if_else(
+  mutate(ddlon = if_else(
       pais == "Colombia" &
         !is.na(ddlon) &
         ddlon > 0,
       -ddlon,
-      ddlon
-    )
-  )
-
+      ddlon))
 
 # 6. Conservar variables finales
-
 
 registros <- registros %>%
   select(
@@ -125,28 +112,20 @@ registros <- registros %>%
     municipio,
     fecha,
     habito,
-    id
-  )
-
+    id)
 
 # 7. Base completa (todos los registros)
 
-
 registros_totales <- registros
 
-
 # 8. Base para ConR (solo registros georreferenciados)
-
 
 registros_limpios <- registros_totales %>%
   filter(
     !is.na(ddlat),
-    !is.na(ddlon)
-  )
-
+    !is.na(ddlon))
 
 # 9. Control de calidad
-
 
 cat("\n================ CONTROL DE CALIDAD ================\n")
 
@@ -177,7 +156,6 @@ cat("Registros finales para ConR:              ",
 
 cat("====================================================\n\n")
 
-
 # 10. Resumen por especie
 
 
@@ -187,23 +165,19 @@ resumen <- registros_limpios %>%
 
 print(resumen)
 
-
 # 11. Guardar archivos
-
 
 write.csv(
   registros_totales,
   "datos/registros/registros_totales.csv",
   row.names = FALSE,
-  fileEncoding = "UTF-8"
-)
+  fileEncoding = "UTF-8")
 
 write.csv(
   registros_limpios,
   "datos/registros/registros_limpios.csv",
   row.names = FALSE,
-  fileEncoding = "UTF-8"
-)
+  fileEncoding = "UTF-8")
 
 cat("\nArchivos exportados correctamente:\n")
 cat(" - datos/registros/registros_totales.csv\n")
