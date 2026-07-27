@@ -28,10 +28,21 @@ library(dplyr)
 library(writexl)
 
 # Cargar registros y agregar parámetros de especie
-registros <- read.csv("datos/registros/registros_limpios.csv", encoding = "UTF-8") %>%
+registros <- read.csv(
+  "datos/registros/registros_limpios.csv",
+  encoding = "UTF-8") %>%
   filter(!is.na(ddlat), !is.na(ddlon)) %>%
-  mutate(umbral = 150,
-         disper = 50)
+  mutate(
+    elev_msnm = as.numeric(elev_msnm),
+    umbral = 150,
+    disper = 50)
+
+registros_raw <- read.csv("datos/registros/registros_limpios.csv",
+  encoding = "UTF-8")
+
+registros_raw %>%
+  filter(is.na(suppressWarnings(as.numeric(elev_msnm)))) %>%
+  dplyr::select(tax, elev_msnm)
 
 # DEM de elevación - resolución baja (z=6, ~1km) solo para filtro espacial en AHO
 # Los valores mín/máx por especie se calculan desde elev_msnm del CSV (más preciso)
@@ -45,10 +56,27 @@ if (!file.exists(ruta_elv)) {
   elv <- raster(ruta_elv)
 }
 
+# Completar elevación faltante desde el DEM
+
+# Coordenadas de todos los registros
+coords <- registros[, c("ddlon", "ddlat")]
+
+# Extraer elevación del DEM para cada registro
+elev_dem <- raster::extract(elv, coords)
+
+# Completar únicamente los NA del CSV
+registros$elev_msnm <- ifelse(
+  is.na(registros$elev_msnm),
+  elev_dem,
+  registros$elev_msnm
+)
+
+message(sum(is.na(registros$elev_msnm)), " registros continúan sin elevación.")
+
 # Rasters BNB del IDEAM
 # Descargar manualmente desde el portal IDEAM (ver instrucciones arriba)
 # y guardar en datos/capas/coberturas_tierra/ con los nombres indicados.
-#
+
 # Preparar rasters BNB a resolución 300m (correr UNA VEZ si los descargaste en resolución original):
 # Preparar BNB_300 (correr UNA VEZ después de descargar los originales)
 if (!file.exists("datos/capas/coberturas_tierra/BNB_300_2024.tif")) {
@@ -77,8 +105,7 @@ for (año in c("1990", "2000")) {
 BNBstk <- stack(
   raster("datos/capas/coberturas_tierra/BNB_300_1990.tif"),
   raster("datos/capas/coberturas_tierra/BNB_300_2000.tif"),
-  SB10
-)
+  SB10)
 
 # Huella humana (IHEH Colombia) - cargar el archivo disponible
 hh <- raster("datos/capas/coberturas_tierra/iheh_col.tif")
@@ -306,8 +333,11 @@ sfrag <- function(BNB, puntos, xy = c(2, 3), bufferSize = 20, bufferPoints = TRU
   Area   <- (92106 * npix) / 1e6
   corc1  <- as.data.frame(t(rbind(clon, clat))); coordinates(corc1) <- c("clon", "clat")
   if (length(Area) < 2) {
-    return(list(cbind("Area km^2" = Area, "Isolated" = "Solo un parche",
-                      "Small" = Area < unique(puntos[, 4])), "NULL", "NULL"))
+    return(list(data.frame(
+        "Area km^2" = Area,
+        "Dist_PMC m" = NA,
+        Isolated = "Solo un parche",
+        Small = Area < unique(puntos[,4])),NA,NA))
   }
   dis      <- apply(as.data.frame(distm(corc1)), 2, as.numeric); dis[dis == 0] <- NA
   minall   <- apply(dis, 2, function(x) min(x, na.rm = TRUE))
@@ -497,6 +527,7 @@ Tallfg <- Filter(Negate(is.null), lapply(seq_along(sg), function(i) {
   if (length(sg[[i]]) == 0) return(NULL)
   cbind(Especie = ne[i], as.data.frame(sg[[i]][[1]]))
 }))
+sapply(Tallfg, ncol)
 write.csv(do.call(rbind, Tallfg),
           "resultados/eecorisk/fragmentacion_severa/detalle_parches.csv",
           row.names = FALSE)
