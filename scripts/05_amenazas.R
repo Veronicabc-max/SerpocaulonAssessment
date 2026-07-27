@@ -76,7 +76,7 @@ subpoblaciones_reg <- read.csv(
 registros <- registros %>%
   left_join(
     subpoblaciones_reg %>%
-      select(tax, fila_excel, subpop_id),
+      dplyr::select(tax, fila_excel, subpop_id),
     by = c("tax", "fila_excel")
   )
 puntos_sf <- st_as_sf(  registros,
@@ -168,7 +168,7 @@ pct_subpob_amenaza <- function(puntos, amenaza_sf, subpop_res){
       
     ) %>%
     
-    select(
+    dplyr::select(
       tax,
       n_subpob_amenazada,
       pct_afectadas
@@ -179,8 +179,7 @@ pct_subpob_amenaza <- function(puntos, amenaza_sf, subpop_res){
 # Petróleo y gas (ANH)
 petroleo <- st_read(
   "datos/capas/amenazas/Tierras_Junio_170625.shp",
-  quiet = TRUE
-) %>%
+  quiet = TRUE) %>%
   st_transform(4326) %>%
   st_make_valid() %>%
   filter(CLASIFICAC == "ASIGNADA")
@@ -189,19 +188,15 @@ af_petroleo <-
   pct_subpob_amenaza(
     puntos_sf,
     petroleo,
-    subpop_res
-  ) %>%
-  rename(
-    pct_petroleo = pct_afectadas,
-    n_petroleo = n_subpob_amenazada
-  )
+    subpop_res) %>%
+  rename(pct_petroleo = pct_afectadas,
+    n_petroleo = n_subpob_amenazada)
 
 # Minería de metales (ANM)
 # NOTA: capa de 2022, actualizar cuando esté disponible versión más reciente
 mineria <- st_read(
   "datos/capas/amenazas/Titulo_vigente_030122.shp",
-  quiet = TRUE
-) %>%
+  quiet = TRUE) %>%
   st_transform(4326) %>%
   st_make_valid() %>%
   filter(ESTADO == "Activo")
@@ -210,12 +205,9 @@ af_mineria <-
   pct_subpob_amenaza(
     puntos_sf,
     mineria,
-    subpop_res
-  ) %>%
-  rename(
-    pct_mineria = pct_afectadas,
-    n_mineria = n_subpob_amenazada
-  )
+    subpop_res) %>%
+  rename(pct_mineria = pct_afectadas,
+    n_mineria = n_subpob_amenazada)
 
 # Buffer de 1 km alrededor de vías para capturar impacto
 vias_buf <- vias %>%
@@ -223,16 +215,12 @@ vias_buf <- vias %>%
   st_buffer(1000) %>%
   st_transform(4326)
 
-af_vias <-
-  pct_subpob_amenaza(
+af_vias <- pct_subpob_amenaza(
     puntos_sf,
     vias_buf,
-    subpop_res
-  ) %>%
-  rename(
-    pct_vias = pct_afectadas,
-    n_vias = n_subpob_amenazada
-  )
+    subpop_res) %>%
+  rename(pct_vias = pct_afectadas,
+    n_vias = n_subpob_amenazada)
 
 # Cobertura de la tierra (IDEAM 2022) - CLC Corine Land Cover
 # Archivo ~4 GB, no está en GitHub; descargar desde portal IDEAM y guardar en:
@@ -442,7 +430,7 @@ amenazas_sp <- amenazas_sp %>%
     
   ) %>%
   ungroup() %>%
-  select(-amenazas_txt)
+  dplyr::select(-amenazas_txt)
 
 dir.create("resultados/amenazas", recursive = TRUE, showWarnings = FALSE)
 amenazas_sp <- amenazas_sp %>%
