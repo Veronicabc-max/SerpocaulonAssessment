@@ -215,36 +215,30 @@ subpop <- subpop.comp(
   MyData,
   resol_sub_pop = 5,
   export_shp = TRUE,
-  show_progress = TRUE
-)
+  show_progress = TRUE)
 
 # Registros como sf
 puntos_sf <- registros %>%
   filter(!is.na(ddlat), !is.na(ddlon)) %>%
   st_as_sf(
     coords = c("ddlon", "ddlat"),
-    crs = 4326
-  )
+    crs = 4326)
 
 # Mismo CRS de las subpoblaciones
 puntos_sf <- st_transform(
   puntos_sf,
-  st_crs(subpop$poly_subpop)
-)
+  st_crs(subpop$poly_subpop))
 
 # Identificador de subpoblación
 subpop$poly_subpop$subpop_id <-
   seq_len(nrow(subpop$poly_subpop))
 
-##----------------------------------------------------------
 ## Asignar registros a subpoblaciones (por especie)
-##----------------------------------------------------------
 
 subpop$poly_subpop$subpop_id <- ave(
   seq_len(nrow(subpop$poly_subpop)),
   subpop$poly_subpop$tax,
-  FUN = seq_along
-)
+  FUN = seq_along)
 
 lista_registros <- split(puntos_sf, puntos_sf$tax)
 lista_poligonos <- split(subpop$poly_subpop, subpop$poly_subpop$tax)
@@ -279,7 +273,7 @@ registros_subpop <-
     
   )
 
-registros_subpop %>%
+a <- registros_subpop %>%
        group_by(tax) %>%
        summarise(
            subpop_calculadas = n_distinct(subpop_id)) %>%
@@ -287,18 +281,15 @@ registros_subpop %>%
            subpop$number_subpop,
            by = "tax" ) %>%
        mutate(coincide = subpop_calculadas == subpop)
+View(a)
 
-write.csv(
-  registros_subpop,
+write.csv(registros_subpop,
   "resultados/ConR/subpoblaciones/subpoblaciones_registros.csv",
-  row.names = FALSE
-)
+  row.names = FALSE)
 
-write.csv(
-  subpop$number_subpop,
+write.csv(subpop$number_subpop,
   "resultados/ConR/subpoblaciones/subpoblaciones.csv",
-  row.names = FALSE
-)
+  row.names = FALSE)
 
 # Evaluación Criterio B completa
 # criterion_B calcula todo internamente para garantizar consistencia entre parámetros.
@@ -308,9 +299,16 @@ write.csv(
 # La categoría IUCN se asigna manualmente por los evaluadores; criterion_B no es necesario.
 resumen_conr <- eoo$results %>%
   rename(EOO_km2 = eoo) %>%
-  full_join(aoo %>% rename(AOO_km2 = aoo), by = "tax") %>%
-  full_join(loc$locations %>% rename(n_localidades = locations), by = "tax") %>%
-  full_join(subpop %>% rename(n_subpoblaciones = subpop), by = "tax")
+  full_join(
+    aoo %>% rename(AOO_km2 = aoo),
+    by = "tax") %>%
+  full_join(
+    loc$locations %>% rename(n_localidades = locations),
+    by = "tax") %>%
+  full_join(
+    subpop$number_subpop %>%
+      rename(n_subpoblaciones = subpop),
+    by = "tax")
 
 write_xlsx(resumen_conr, "resultados/ConR/criterioB/resumen_parametros_ConR.xlsx")
 
@@ -356,8 +354,7 @@ reg_mpios <- puntos_sf %>%
     tax,
     id,
     municipio = NAME_2,
-    departamento = NAME_1
-  )
+    departamento = NAME_1)
 
 write.csv(reg_mpios, "resultados/ConR/criterioB/registros_municipios_dptos.csv",
           row.names = FALSE, fileEncoding = "UTF-8")
