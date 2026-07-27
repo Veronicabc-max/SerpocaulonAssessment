@@ -614,6 +614,10 @@ Tablafrag <- Tablafrag %>%
   )
 
 # Actualizar base_maestra.csv con todos los campos derivados de eecorisk
+
+Tablafrag$no_amenazas <- Tablafrag$no_amenazas == "TRUE"
+Tablafrag$amenazas_descon <- Tablafrag$amenazas_descon == "TRUE"
+
 base_maestra <- read.csv("SIS_Connect/base_maestra.csv",
                          encoding = "UTF-8", check.names = FALSE)
 names(base_maestra) <- make.unique(names(base_maestra))
@@ -649,8 +653,6 @@ base_maestra <- base_maestra %>%
                 -desc_frag, -desc_dism_hab, -desc_dism_subpob,
                 -tendencia, -fuente_tendencia, -no_amenazas, -amenazas_descon)
 
-Tablafrag$no_amenazas <- Tablafrag$no_amenazas == "TRUE"
-Tablafrag$amenazas_descon <- Tablafrag$amenazas_descon == "TRUE"
 
 write.csv(base_maestra, "SIS_Connect/base_maestra.csv",
           row.names = FALSE, fileEncoding = "UTF-8")
