@@ -25,8 +25,7 @@ registros <- read.csv(
 puntos_sf <- st_as_sf(
   registros,
   coords = c("ddlon","ddlat"),
-  crs = 4326
-)
+  crs = 4326)
 
 colombia <- st_read("datos/capas/pais/Colombia.gpkg", quiet = TRUE)
 deptos   <- st_read("datos/capas/pais/Colombia_deptos.gpkg", quiet = TRUE)
@@ -42,8 +41,7 @@ pct_ap <- read.csv(
 ) |>
   dplyr::select(
     tax = `NOMBRE CIENTÍFICO sin autor`,
-    pct_ap = `% OCURRENCIAS EN AREAS PROTEGIDAS`
-  )
+    pct_ap = `% OCURRENCIAS EN AREAS PROTEGIDAS`)
 
 params_conr <- eoo_res |>
   rename(EOO_km2 = eoo) |>
@@ -54,8 +52,7 @@ params_conr <- eoo_res |>
 
 eoo_shp <- st_read(
   "resultados/ConR/formas_EOO/EOO_poly.shp",
-  quiet = TRUE
-)
+  quiet = TRUE)
 
 mapa_especie <- function(sp, guardar=TRUE){
   
@@ -212,12 +209,10 @@ mapa_especie <- function(sp, guardar=TRUE){
   p_final
 }
 
-mapview(
-  puntos_sf,
+mapview(puntos_sf,
   zcol="tax",
   layer.name="Especie",
-  map.types="Esri.WorldShadedRelief"
-)
+  map.types="Esri.WorldShadedRelief")
 
 sp_prueba <- sort(unique(registros$tax))[1]
 print(mapa_especie(sp_prueba,FALSE))
@@ -227,8 +222,7 @@ especies <- sort(unique(registros$tax))
 pb <- txtProgressBar(
   min=0,
   max=length(especies),
-  style=3
-)
+  style=3)
 
 for(i in seq_along(especies)){
   setTxtProgressBar(pb,i)
