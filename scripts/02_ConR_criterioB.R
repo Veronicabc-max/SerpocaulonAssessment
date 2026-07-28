@@ -378,8 +378,29 @@ desc_tamano <- resumen_conr %>%
 # Actualizar base_maestra.csv con resultados de ConR
 base_maestra <- read.csv("SIS_Connect/base_maestra.csv",
                          encoding = "UTF-8", check.names = FALSE)
-# La BASE MAESTRA tiene columnas duplicadas; make.unique las hace únicas para el join
 names(base_maestra) <- make.unique(names(base_maestra))
+
+# Verificar que todas las especies de registros estén en base_maestra; agregar las faltantes
+especies_reg   <- unique(registros$tax)
+especies_bm    <- base_maestra[["NOMBRE CIENTÍFICO sin autor"]]
+especies_faltan <- setdiff(especies_reg, especies_bm)
+
+if (length(especies_faltan) > 0) {
+  message("Especies en registros pero no en base_maestra — se agregan automáticamente:")
+  message(paste(" -", especies_faltan, collapse = "\n"))
+  filas_nuevas <- data.frame(
+    REINO   = "Plantae", PHYLLUM = "Tracheophyta", CLASE = "Polypodiopsida",
+    ORDEN   = "Polypodiales", FAMILIA = "Polypodiaceae",
+    `GÉNERO` = "Serpocaulon",
+    ESPECIE = sub("Serpocaulon ", "", especies_faltan),
+    `NOMBRE CIENTÍFICO sin autor` = especies_faltan,
+    check.names = FALSE
+  )
+  base_maestra <- bind_rows(base_maestra, filas_nuevas) %>%
+    arrange(`NOMBRE CIENTÍFICO sin autor`)
+  write.csv(base_maestra, "SIS_Connect/base_maestra.csv",
+            row.names = FALSE, fileEncoding = "UTF-8")
+}
 
 # Los nombres de columna exactos del output de criterion_B pueden variar según versión;
 # ajustar si es necesario revisando names(criterioB)

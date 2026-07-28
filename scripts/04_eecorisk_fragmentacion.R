@@ -575,16 +575,19 @@ Tablafrag <- Tablafrag %>%
     desc_frag = case_when(
       cod_fragmentacion != "YES" ~ NA_character_,
       TRUE ~ paste0("El ", FS_score, "% de parches de hábitat donde se encuentra la especie ",
-                    "son pequeños y aislados. Estos parches se encuentran en ",
+                    "son pequeños y aislados. Estos parches se encuentran en el/los municipio(s) de ",
                     mpios, ".")
     ),
 
     desc_dism_hab = case_when(
       cod_dism_habitat != "YES" ~ NA_character_,
-      TRUE ~ paste0("La especie se encuentra en paisajes con destrucción y degradación de su hábitat ",
-                    "(huella humana promedio de ", pct_HH, "% en su área de hábitat disponible). ",
-                    "Sus ", n_subpop, " subpoblacion", ifelse(n_subpop == 1, " conocida se encuentra", "es conocidas se encuentran"),
-                    " en ", mpios, ".")
+      TRUE ~ paste0(
+        tools::toTitleCase(num_palabras(n_subpop)),
+        " subpoblacion", ifelse(n_subpop == 1, " de", "es de"),
+        " la especie se encuentran en paisajes con destrucción y degradación de su hábitat. ",
+        "Estas subpoblaciones se encuentran en el/los municipio(s) de ",
+        mpios, "."
+      )
     ),
 
     desc_dism_subpob = case_when(
