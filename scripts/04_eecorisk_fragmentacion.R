@@ -430,64 +430,52 @@ pct_hh <- sapply(seq_along(ne), function(i) {
   
 })
 
-# Precalcular clumps históricos (solo una vez)
-clumps_hist_list <- lapply(1:(nlayers(BNBstk) - 1), function(j) {
-  
-  clp <- clump(BNBstk[[j]], directions = 4)
-  
-  list(
-    clump = clp,
-    vals = getValues(clp)
-  )
-  
-})
+# Detectar subpoblaciones desaparecidas por especie
+# Se recorta BNBstk a la extensión de cada especie antes de clumpear
+# (clump sobre Colombia completa es inviablemente lento)
+pb3 <- txtProgressBar(min = 0, max = length(ne), style = 3)
 
-vals_current <- getValues(BNBstk[[nlayers(BNBstk)]])
+subpob_perdida <- sapply(seq_along(ne), function(i) {
 
-# Función discon: detecta si alguna subpoblación (parche con ocurrencias) desapareció
-# comparando capas históricas BNB con la actual (última capa del stack)
-discon <- function(clumps_hist_list, vals_current, puntos, xy = c(3,2)) {
-  
-  coords <- as.matrix(puntos[, xy])
-  
-  for (j in seq_along(clumps_hist_list)) {
-    
-    clump_raster <- clumps_hist_list[[j]]$clump
-    vals_clumps  <- clumps_hist_list[[j]]$vals
-    
-    vals_hist <- extract(clump_raster, coords)
-    
-    parches_hist <- unique(na.omit(vals_hist))
-    
-    if (length(parches_hist) == 0)
-      next
-    
-    for (p in parches_hist) {
-      
-      idx <- vals_clumps == p
-      
-      if (all(vals_current[idx] == 0 | is.na(vals_current[idx])))
+  setTxtProgressBar(pb3, i)
+
+  if (nrow(csp[[i]]) == 0) return(NA)
+
+  pts    <- csp[[i]]
+  coords <- as.matrix(pts[, c(3, 2)])   # Longitud, Latitud
+
+  # Extensión con buffer de 2 celdas alrededor de los puntos
+  cex    <- raster::extract(SB10, coords, cell = TRUE)
+  ext_sp <- extentFromCells(SB10, unique(cex[, 1]))
+  ext_sp@xmin <- ext_sp@xmin - 2 * xres(SB10)
+  ext_sp@xmax <- ext_sp@xmax + 2 * xres(SB10)
+  ext_sp@ymin <- ext_sp@ymin - 2 * yres(SB10)
+  ext_sp@ymax <- ext_sp@ymax + 2 * yres(SB10)
+
+  stk_sp      <- crop(BNBstk, ext_sp)
+  n_layers    <- nlayers(stk_sp)
+  current_v   <- getValues(stk_sp[[n_layers]])
+
+  for (j in 1:(n_layers - 1)) {
+
+    cl       <- clump(stk_sp[[j]], directions = 4)
+    vals_cl  <- getValues(cl)
+    vals_pts <- raster::extract(cl, coords)
+    parches  <- unique(na.omit(vals_pts))
+
+    if (length(parches) == 0) next
+
+    for (p in parches) {
+      idx <- which(vals_cl == p)
+      if (all(current_v[idx] == 0 | is.na(current_v[idx])))
         return(TRUE)
-      
     }
   }
-  
-  FALSE
-}
 
-# Detectar subpoblaciones desaparecidas por especie
-subpob_perdida <- sapply(seq_along(ne), function(i) {
-  
-  if (nrow(csp[[i]]) == 0)
-    return(NA)
-  
-  discon(
-    clumps_hist_list = clumps_hist_list,
-    vals_current = vals_current,
-    puntos = csp[[i]],
-    xy = c(3, 2)
-  )
+  FALSE
 })
+
+close(pb3)
 
 # Tabla de resultados
 umbral_HH <- 40   # % para declarar disminución continua de hábitat
@@ -593,10 +581,10 @@ Tablafrag <- Tablafrag %>%
 
     desc_dism_hab = case_when(
       cod_dism_habitat != "YES" ~ NA_character_,
-      TRUE ~ paste0(tools::toTitleCase(num_palabras(n_subpop)),
-                    " subpoblacion", ifelse(n_subpop == 1, " de", "es de"),
-                    " la especie se encuentran en paisajes con destrucción y degradación ",
-                    "de su hábitat. Estas subpoblaciones se encuentran en ", mpios, ".")
+      TRUE ~ paste0("La especie se encuentra en paisajes con destrucción y degradación de su hábitat ",
+                    "(huella humana promedio de ", pct_HH, "% en su área de hábitat disponible). ",
+                    "Sus ", n_subpop, " subpoblacion", ifelse(n_subpop == 1, " conocida se encuentra", "es conocidas se encuentran"),
+                    " en ", mpios, ".")
     ),
 
     desc_dism_subpob = case_when(
