@@ -865,9 +865,13 @@
 855,"Serpocaulon patentissimum","1496","T.B. Croat 71573 (PSO)","23448","Nariño: Ricaurte, vicinity Ricaurte; along Río Imbí, ca 2-3 km above Ecopetrol campamento Palmar, located 3 km of Ricaurte, along trail to Ramos (indigenous settlement).","Colombia","Nariño: Ricaurte","vicinity Ricaurte; along Río Imbí","32948","He, reptante",918,1
 856,"Serpocaulon patentissimum","1496","T.B. Croat 71437 (PSO)","23335","Nariño: Vicinity of ""Palmar"", in valley of río Imbi, 3 km NW of Ricaurte (along road between Pasto and Tumaco), ca 1 km E of Texas Gulf Pipeline Maintainence Station, along slopes above Río Imbii","Colombia","Nariño: Vicinity of ""Palmar""","in valley of río Imbi","32946","Epifito, reptante",919,1
 857,"Serpocaulon patentissimum",NA,"T.B. Croat & J.F. Gaskin 80188 (CUVC)","31561","Valle del Cauca, Along road to Dapa from main Cali-Buenaventura Higway.","Colombia","Valle del Cauca","Along road to Dapa from main Cali-Buenaventura Higway.","35634","Epífito",920,3
-858,"Serpocaulon polystichum","2684,830","Rodríguez et al. 5089","HUA","Colombia, Antioquia, Angelópolis, Sector Bocatoma acueducto, Quebrada Las Animas",NA,NA,NA,"38389",NA,NA,2
-859,"Serpocaulon polystichum","1571","Barbosa 10033","FMB","Caldas, Samaná, cruce camino a Florencia con Carretera a Pueblo Nuevo, con 24 de Pensilvania",NA,NA,NA,"34643",NA,NA,1
-863,"Serpocaulon polystichum","1585","Bischler 2144","COL","Santander, Sarare, Alto el Mirador",NA,NA,NA,"21637",NA,NA,3
+858,"Serpocaulon polystichum","2684,830","Rodríguez et al. 5089","HUA","Colombia, Antioquia, Angelópolis, Sector Bocatoma acueducto, Quebrada Las Animas",NA,NA,NA,"38389",NA,NA,6
+859,"Serpocaulon polystichum","1571","Barbosa 10033","FMB","Caldas, Samaná, cruce camino a Florencia con Carretera a Pueblo Nuevo, con 24 de Pensilvania",NA,NA,NA,"34643",NA,NA,5
+860,"Serpocaulon polystichum","1539","Franco et al. 1628","COL","Chocó, San José del Palmar, vereda El Corcovado, Finca Ayaconas",NA,NA,NA,"30336",NA,NA,4
+861,"Serpocaulon polystichum","1549","Alba L. Arbeláez et al. 534","MO 6349160","Magdalena, Vereda La tagua, sitio Filo Cartagena. Colecciones realizadas entre la vereda La Tagua y Filo Cartagena.",NA,NA,NA,"33804",NA,NA,1
+862,"Serpocaulon polystichum","2103","Lellinger & de la Sota 856","COL","Valle del Cauca, at both sides of the principal ridge of the Serrania de los Paraguas, along trail from El Cairo to río Blanco, ca. 8 km SW of El Cairo",NA,NA,NA,"26020",NA,NA,3
+863,"Serpocaulon polystichum","1585","Bischler 2144","COL","Santander, Sarare, Alto el Mirador",NA,NA,NA,"21637",NA,NA,7
+864,"Serpocaulon polystichum","1552","Montero & Gamboa 22","COL","Valle del Cauca, Cali, vereda Pico de Águila",NA,NA,NA,"33635",NA,NA,2
 865,"Serpocaulon psychotrium","70","Alfonso R. & E. Ayarze 421","COL 000335834","Colombia, Amazonas, Peña Roja, Isla Sumaeta, llanura aluvial del río Caquetá.","Colombia","Amazonas","Peña Roja","36040","He",923,10
 866,"Serpocaulon psychotrium","70","Alfonso R. & E. Ayarze 421","COL 000335804","Colombia, Amazonas, Peña Roja, Isla Sumaeta, llanura aluvial del río Caquetá.","Colombia","Amazonas","Peña Roja","36040","He",926,10
 867,"Serpocaulon psychotrium","70","Alfonso R. & E. Ayarze 421","COL 000335803","Colombia, Amazonas, Peña Roja, Isla Sumaeta, llanura aluvial del río Caquetá.","Colombia","Amazonas","Peña Roja","36040","He",927,10
@@ -1046,7 +1050,7 @@
 1040,"Serpocaulon subandinum","3196","Sanín D et al., 3151","FAUC xxx","Colombia, Tolima, Ibague, El Bergel, vía Termales del Cañón, Escuela Rural, bosques a mano derecha al SE.","Colombia","Tolima","Ibague","40017","He",1108,17
 1041,"Serpocaulon tayronae","1460","Smith 1025","BR","Colombia, Magdalena, Santa Marta, Sierra nevada de Santa Marta, Las nubes.",NA,NA,NA,"1898−1901",NA,NA,1
 1042,"Serpocaulon tayronae",NA,"D. Sanín & G. F. Peñaloza Bojacá 7104","BHCB","Colombia, Magdalena, Minca, zona amortiguadora del Parque Nacional Natural Sierra Nevada de Santa Marta",NA,NA,NA,"42980",NA,NA,1
-1043,"Serpocaulon tayronae",NA,"D. Sanín & G. F. Peñaloza Bojacá 8001","BHCB","Colombia, Magdalena, Minca, zona amortiguadora del Parque Nacional Natural Sierra Nevada de Santa Marta",NA,NA,NA,"43831",NA,NA,1
+1043,"Serpocaulon tayronae","1899","D. Sanín & G. F. Peñaloza Bojacá 8001","BHCB","Colombia, Magdalena, Minca, zona amortiguadora del Parque Nacional Natural Sierra Nevada de Santa Marta",NA,NA,NA,"43831",NA,NA,1
 1044,"Serpocaulon triseriale","123","Galeano G. et al., 912","COL 000336589","Colombia, Amazonas, corregimiento La Araracuara, trocha al río Yarí, al NE del corregimiento.","Colombia","Amazonas","corregimiento La Araracuara","31520","Hr",1110,59
 1045,"Serpocaulon triseriale","91","Pinilla N. 600","COL 000336561","Colombia, Amazonas, Leticia, resguardo Tikuna de San Martín de Amacayacu.","Colombia","Amazonas","Leticia","35430","Hr",1112,57
 1046,"Serpocaulon triseriale","107","Higuera D. & N. Ague 284","COL 000336644","Colombia, Amazonas, Leticia, Parque Nacional Amacayacu, Resguardo indigena El Vergel, isla Mocagua, restinga alta de Pachaco.","Colombia","Amazonas","Leticia","37337","He",1114,58
