@@ -3,6 +3,7 @@
 # Autora: Verónica Bedoya; Maria Judith Carmona | 2026
 # Correr después del script 04
 
+# Librerías ----
 library(raster)
 library(sf)
 library(ggplot2)
@@ -10,19 +11,24 @@ library(ggspatial)
 library(dplyr)
 library(cowplot)
 
+# Datos ----
 # Cargar objetos generados por script 04
 AOOok     <- readRDS("resultados/eecorisk/habitat_disponible/AOOok.rds")
 ne        <- readRDS("resultados/eecorisk/habitat_disponible/ne.rds")
-hh        <- raster("datos/capas/coberturas_tierra/iheh_col.tif")
 registros <- read.csv("datos/registros/registros_limpios.csv", encoding = "UTF-8") %>%
   filter(!is.na(ddlat), !is.na(ddlon))
 Tablafrag <- read.csv("resultados/eecorisk/fragmentacion_severa/resultados_eecorisk.csv")
+
+# SB10 se usa como grilla de referencia para reprojectar IHEH al mismo CRS que el AOH
+SB10 <- raster("datos/capas/coberturas_tierra/BNB_300_2024.tif")
+hh   <- raster("datos/capas/coberturas_tierra/iheh_col.tif")
+hh   <- projectRaster(hh, SB10)   # mismo CRS/extent que los rasters AOH
 
 umbral_HH <- 40
 
 dir.create("resultados/mapas/verificacion_eecorisk", recursive = TRUE, showWarnings = FALSE)
 
-# Función: mapa AOH + huella humana para una especie
+# Función mapa ----
 mapa_eecorisk <- function(sp, guardar = TRUE) {
 
   i <- which(ne == sp)
@@ -53,54 +59,76 @@ mapa_eecorisk <- function(sp, guardar = TRUE) {
   cod_hab       <- if (nrow(params) > 0) params$cod_dism_habitat[1]  else NA
 
   # Convertir rasters a data.frame para ggplot
-  aoh_df <- as.data.frame(aoh,  xy = TRUE) %>% filter(!is.na(layer))
-  hh_df  <- as.data.frame(hh_mask, xy = TRUE) %>%
-    rename(hh = 3) %>% filter(!is.na(hh))
+  aoh_df <- as.data.frame(aoh, xy = TRUE) %>%
+    rename(valor = 3) %>%
+    mutate(panel = "AOH (área de hábitat disponible)",
+           fill_aoh = ifelse(valor == 1, "Hábitat", NA))
+
+  hh_full_df <- as.data.frame(crop(hh, extent(aoh)), xy = TRUE) %>%
+    rename(hh = 3) %>%
+    mutate(panel = paste0("Huella humana  [promedio en AOH: ", pct_hh_val,
+                          "%  |  umbral: ", umbral_HH, "%]"))
 
   # Extensión con ligero margen
   ext  <- extent(aoh)
   xlim <- c(ext@xmin - 0.1, ext@xmax + 0.1)
   ylim <- c(ext@ymin - 0.1, ext@ymax + 0.1)
 
-  # Texto de parámetros
-  label_txt <- paste0(
-    "HH promedio: ", pct_hh_val, "%  (umbral: ", umbral_HH, "%)\n",
-    "Dism. hábitat: ", cod_hab, "\n",
-    "Frag. severa: ", cod_frag, "  (FS score: ", fs_score, "%)"
-  )
-
-  p <- ggplot() +
-    # AOH (verde)
-    geom_raster(data = aoh_df %>% filter(layer == 1),
-                aes(x = x, y = y), fill = "#2d8b57", alpha = 0.6) +
-    # Huella humana sobre AOH (gradiente rojo)
-    geom_raster(data = hh_df, aes(x = x, y = y, fill = hh), alpha = 0.8) +
-    scale_fill_gradient(low = "#ffffcc", high = "#d73027",
-                        name = "Huella\nhumana (%)") +
-    # Umbral de huella humana como línea de referencia en la leyenda (visual)
-    geom_point(data = pts, aes(geometry = geometry), stat = "sf_coordinates",
-               color = "black", fill = "#f5e642", shape = 21, size = 3, stroke = 1) +
+  # Panel izquierdo: AOH
+  p_aoh <- ggplot() +
+    geom_raster(data = aoh_df %>% filter(!is.na(fill_aoh)),
+                aes(x = x, y = y), fill = "#2d8b57") +
+    geom_sf(data = pts, color = "black", fill = "#f5e642",
+            shape = 21, size = 2.5, stroke = 0.8) +
     coord_sf(xlim = xlim, ylim = ylim, expand = FALSE) +
     annotation_scale(location = "bl", width_hint = 0.3) +
-    annotation_north_arrow(location = "tr",
-                           style = north_arrow_fancy_orienteering(
-                             text_size = 8)) +
-    annotate("label", x = xlim[1] + 0.05, y = ylim[2] - 0.05,
-             label = label_txt, hjust = 0, vjust = 1, size = 3,
-             fill = "white", alpha = 0.85, label.size = 0.3) +
-    labs(title = sp,
+    labs(title = "AOH (área de hábitat disponible)",
          subtitle = paste(nrow(pts), "registros |",
-                          sum(getValues(aoh) == 1, na.rm = TRUE), "celdas AOH"),
+                          sum(getValues(aoh) == 1, na.rm = TRUE), "celdas"),
          x = NULL, y = NULL) +
-    theme_bw(base_size = 11) +
-    theme(plot.title = element_text(face = "italic"),
-          legend.position = "right")
+    theme_bw(base_size = 10) +
+    theme(plot.title = element_text(size = 9, face = "bold"))
+
+  # Panel derecho: huella humana (toda el área recortada al extent, no solo AOH)
+  p_hh <- ggplot() +
+    geom_raster(data = hh_full_df %>% filter(!is.na(hh)),
+                aes(x = x, y = y, fill = hh)) +
+    scale_fill_gradientn(
+      colours = c("#1a9641", "#ffffbf", "#d7191c"),
+      values  = scales::rescale(c(0, umbral_HH, 100)),
+      limits  = c(0, 100),
+      name    = "HH (%)",
+      guide   = guide_colorbar(barheight = 8)
+    ) +
+    # Contorno del AOH encima
+    geom_raster(data = aoh_df %>% filter(!is.na(fill_aoh)),
+                aes(x = x, y = y), fill = NA,
+                color = "#2d8b57", alpha = 0) +
+    geom_sf(data = pts, color = "black", fill = "white",
+            shape = 21, size = 2.5, stroke = 0.8) +
+    coord_sf(xlim = xlim, ylim = ylim, expand = FALSE) +
+    labs(title = paste0("Huella humana  [promedio AOH: ", pct_hh_val,
+                        "%  |  umbral: ", umbral_HH, "%]"),
+         subtitle = paste("Dism. hábitat:", cod_hab,
+                          " | Frag. severa:", cod_frag,
+                          " (FS score:", fs_score, "%)"),
+         x = NULL, y = NULL) +
+    theme_bw(base_size = 10) +
+    theme(plot.title = element_text(size = 9, face = "bold"))
+
+  p <- plot_grid(p_aoh, p_hh, ncol = 2) +
+    theme(plot.title = element_text(face = "italic")) +
+    labs(title = sp)
+
+  p <- ggdraw(p) +
+    draw_label(sp, x = 0.5, y = 0.98, vjust = 1,
+               fontface = "italic", size = 13)
 
   if (guardar) {
     nombre <- gsub(" ", "_", sp)
     ggsave(
       filename = paste0("resultados/mapas/verificacion_eecorisk/", nombre, "_eecorisk.png"),
-      plot = p, width = 10, height = 7, dpi = 150
+      plot = p, width = 14, height = 7, dpi = 150
     )
     message("Guardado: ", nombre, "_eecorisk.png")
   }
@@ -108,11 +136,11 @@ mapa_eecorisk <- function(sp, guardar = TRUE) {
   return(p)
 }
 
-# Mapa de prueba: primera especie con AOH disponible
+# Prueba ----
 sp_prueba <- ne[!sapply(AOOok, is.null)][1]
 mapa_eecorisk(sp_prueba, guardar = FALSE)
 
-# Loop: generar mapas para todas las especies
+# Loop mapas ----
 for (sp in ne) {
   tryCatch(
     mapa_eecorisk(sp, guardar = TRUE),

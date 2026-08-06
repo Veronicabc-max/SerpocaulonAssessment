@@ -5,14 +5,14 @@
 library(readxl)
 library(dplyr)
 
-# 1. Leer archivo original
+# 1. Leer archivo original ----
 
 # raw <- read_excel("datos/registros/Copia_Puntos_georreferenciados.xlsx") %>%
 #   mutate(fila_excel = row_number()) # versión previa
 raw <- read_excel("datos/registros/Coordenadas_Serpocaulon.xlsx") %>%
   mutate(fila_excel = row_number()) # versión de 27/07/2026
 
-# 2. Seleccionar variables de interés
+# 2. Seleccionar variables de interés ----
 
 registros <- raw %>%
   select(
@@ -48,7 +48,7 @@ registros <- raw %>%
     id = ID
   )
 
-# 3. Excluir híbridos
+# 3. Excluir híbridos ----
 
 registros <- registros %>%
   filter(
@@ -56,7 +56,7 @@ registros <- registros %>%
       "Serpocaulon x manizalense",
       "Serpocaulon x semipinnatifidum"))
 
-# 4. Limpiar coordenadas
+# 4. Limpiar coordenadas ----
 
 registros <- registros %>% mutate(
     
@@ -85,7 +85,7 @@ registros <- registros %>% mutate(
     ddlat = coalesce(lat_corr, lat_orig),
     ddlon = coalesce(lon_corr, lon_orig))
 
-# 5. Corregir longitudes positivas para Colombia
+# 5. Corregir longitudes positivas para Colombia ----
 
 registros <- registros %>%
   mutate(ddlon = if_else(
@@ -95,7 +95,7 @@ registros <- registros %>%
       -ddlon,
       ddlon))
 
-# 6. Conservar variables finales
+# 6. Conservar variables finales ----
 
 registros <- registros %>%
   select(
@@ -114,18 +114,18 @@ registros <- registros %>%
     habito,
     id)
 
-# 7. Base completa (todos los registros)
+# 7. Base completa (todos los registros) ----
 
 registros_totales <- registros
 
-# 8. Base para ConR (solo registros georreferenciados)
+# 8. Base para ConR (solo registros georreferenciados) ----
 
 registros_limpios <- registros_totales %>%
   filter(
     !is.na(ddlat),
     !is.na(ddlon))
 
-# 9. Control de calidad
+# 9. Control de calidad ----
 
 cat("\n================ CONTROL DE CALIDAD ================\n")
 
@@ -156,7 +156,7 @@ cat("Registros finales para ConR:              ",
 
 cat("====================================================\n\n")
 
-# 10. Resumen por especie
+# 10. Resumen por especie ----
 
 
 resumen <- registros_limpios %>%
@@ -165,7 +165,7 @@ resumen <- registros_limpios %>%
 
 print(resumen)
 
-# 11. Guardar archivos
+# 11. Guardar archivos ----
 
 write.csv(
   registros_totales,

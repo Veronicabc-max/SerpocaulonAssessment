@@ -1,24 +1,61 @@
 # Evaluación IUCN - Serpocaulon spp. Colombia
-# Script 03: Fragmentación severa, huella humana y disminución de hábitat (eecorisk)
+# Script 04: Fragmentación severa, huella humana y disminución de hábitat (eecorisk)
 # Autora: Verónica Bedoya; Maria Judith Carmona | 2026
 # Referencia: GEPC - Grupo de Especialistas en Plantas de Colombia
 #
+# Este script implementa la metodología eecorisk del GEPC para evaluar las
+# condiciones del hábitat bajo el Criterio B de la IUCN (subcriterios b(iii) y b(iv)):
+#   - Fragmentación severa del hábitat disponible (AOH)
+#   - Disminución continua de la calidad/cantidad de hábitat (huella humana)
+#   - Disminución continua de subpoblaciones (deforestación histórica BNB)
+#
 # RASTERS REQUERIDOS - descargar manualmente y ubicar en datos/capas/:
 #
-#   coberturas_tierra/   → Capas de Bosque/No Bosque del IDEAM
+#   coberturas_tierra/   → Capas de Bosque/No Bosque (BNB) del IDEAM
+#     Qué es: producto de teledetección del IDEAM que clasifica cada píxel como
+#     Bosque (1) o No Bosque (0) para Colombia continental. Se genera a partir de
+#     imágenes Landsat y refleja la cobertura boscosa al año indicado.
+#     Se usan tres fechas (1990, 2000, 2024) para detectar cambios históricos.
+#     Resolución original: ~30 m. Se remuestrea a 300 m para este análisis (ver abajo).
 #     Descargar desde: https://experience.arcgis.com/experience/568ddab184334f6b81a04d2fe9aac262
 #     Buscar: "Mapa de Bosque No Bosque" para los años 1990, 2000 y 2024
-#     Guardar como: BNB_1990.tif, BNB_2000.tif, BNB_2024.tif
-#     Luego remuestrear a 300m (ver sección "Preparar rasters BNB" abajo)
+#     Guardar como: BNB_1990_original.tif, BNB_2000_original.tif, BNB_2024_original.tif
+#     El script los remuestrea automáticamente a 300m la primera vez.
 #
 #   coberturas_tierra/iheh_col.tif   → Índice de Huella Espacial Humana (IHEH) Colombia
-#     Cargar el archivo que tengas disponible con este nombre
+#     Qué es: raster que cuantifica la intensidad de la presión humana acumulada
+#     sobre el territorio colombiano, integrando variables como: densidad de población,
+#     infraestructura vial, uso del suelo agropecuario, luces nocturnas e índice de
+#     fragmentación del paisaje. Los valores van de 0 (sin huella) a 100 (máxima huella).
+#     Fuente: Correa Ayram et al. (2020) "Spatiotemporal evaluation of the human
+#     footprint in Colombia: Four decades of anthropic impact in highly diverse ecosystems."
+#     Ecological Indicators, 117, 106630. https://doi.org/10.1016/j.ecolind.2020.106630
+#     Disponible en el repositorio del proyecto (datos/capas/coberturas_tierra/iheh_col.tif).
 #
-# PARÁMETROS PARA Serpocaulon (helechos epífitos):
-#   umbral = 150 m  (parche pequeño para epífitas/hierbas)
-#   disper = 50 km  (dispersión por viento - esporas)
-#   umbral_HH = 40  (% huella humana a partir del cual se declara disminución continua de hábitat)
+# PARÁMETROS PARA Serpocaulon (helechos epífitos de bosque húmedo):
+#
+#   umbral = 150 km²
+#     Tamaño mínimo de parche para que NO sea considerado "pequeño".
+#     Para epífitas asociadas a bosque continuo, un parche < 150 km² es
+#     insuficiente para mantener poblaciones viables a largo plazo.
+#     El GEPC define este valor según el grupo funcional de la especie.
+#
+#   disper = 50 km
+#     Distancia máxima de dispersión efectiva.
+#     Las esporas de helechos pueden viajar cientos de km en teoría, pero
+#     la colonización exitosa de nuevos parches ocurre principalmente a
+#     distancias menores. 50 km es el valor usado por el GEPC para pteridófitas.
+#     Un parche a más de 50 km de su vecino más cercano se considera "aislado".
+#
+#   umbral_HH = 40%
+#     Porcentaje de huella humana promedio en el AOH a partir del cual se declara
+#     disminución continua de hábitat (cod_dism_habitat = YES).
+#     El índice IHEH va de 0 (sin intervención) a 100 (completamente transformado).
+#     Un promedio ≥ 40% indica que una fracción importante del hábitat disponible
+#     está sometida a presión humana significativa y continua.
+#     El GEPC usa 40% como umbral estándar para plantas vasculares colombianas.
 
+# Librerías ----
 library(raster)
 library(sf)
 library(geosphere)
@@ -27,16 +64,20 @@ library(elevatr)   # descarga DEM automáticamente
 library(dplyr)
 library(writexl)
 
+# Datos ----
 # Cargar registros y agregar parámetros de especie
+# umbral y disper se añaden como columnas porque AHO_fast y sfrag los leen
+# directamente desde la tabla de puntos (columnas 4 y 5 respectivamente).
 registros <- read.csv(
   "datos/registros/registros_limpios.csv",
   encoding = "UTF-8") %>%
   filter(!is.na(ddlat), !is.na(ddlon)) %>%
   mutate(
     elev_msnm = as.numeric(elev_msnm),
-    umbral = 150,
-    disper = 50)
+    umbral = 150,   # km² - tamaño mínimo de parche (ver parámetros arriba)
+    disper = 50)    # km  - distancia máxima de dispersión (ver parámetros arriba)
 
+# Diagnóstico: registros sin elevación en el CSV original (se completarán con DEM)
 registros_raw <- read.csv("datos/registros/registros_limpios.csv",
   encoding = "UTF-8")
 
@@ -44,8 +85,12 @@ registros_raw %>%
   filter(is.na(suppressWarnings(as.numeric(elev_msnm)))) %>%
   dplyr::select(tax, elev_msnm)
 
-# DEM de elevación - resolución baja (z=6, ~1km) solo para filtro espacial en AHO
-# Los valores mín/máx por especie se calculan desde elev_msnm del CSV (más preciso)
+# DEM ----
+# DEM de elevación
+# Se usa para filtrar celdas del BNB fuera del rango altitudinal de la especie
+# dentro de la función AHO_fast. Resolución z=6 (~1 km) es suficiente para este
+# filtro grueso; la elevación precisa por registro viene del campo elev_msnm del CSV.
+# z=6 descarga ~80 MB; z=9 (~30 m) descargaría ~1.2 GB y no mejora los resultados.
 ruta_elv <- "datos/capas/elevacion/dem_colombia.tif"
 
 if (!file.exists(ruta_elv)) {
@@ -73,12 +118,26 @@ registros$elev_msnm <- ifelse(
 
 message(sum(is.na(registros$elev_msnm)), " registros continúan sin elevación.")
 
-# Rasters BNB del IDEAM
-# Descargar manualmente desde el portal IDEAM (ver instrucciones arriba)
-# y guardar en datos/capas/coberturas_tierra/ con los nombres indicados.
-
-# Preparar rasters BNB a resolución 300m (correr UNA VEZ si los descargaste en resolución original):
-# Preparar BNB_300 (correr UNA VEZ después de descargar los originales)
+# BNB remuestreo 30m → 300m ----
+# Remuestreo BNB de 30 m a 300 m
+# El BNB original del IDEAM tiene ~30 m de resolución (píxeles Landsat).
+# Se remuestrea a 300 m (factor 10) por tres razones:
+#   1. Eficiencia: clump() y las operaciones de parches sobre un raster de 30 m
+#      para toda Colombia tardarían horas o días; a 300 m tarda minutos.
+#   2. Escala apropiada: las subpoblaciones de Serpocaulon se definen a escala de
+#      kilómetros (buffer 5 km en script 02); detectar parches a 30 m introduce
+#      ruido que no corresponde a unidades ecológicas reales.
+#   3. Compatibilidad con IHEH: el raster de huella humana tiene resolución similar,
+#      facilitando la integración de capas.
+# fun = min en aggregate: una celda de 300 m se clasifica como Bosque (1) solo si
+#   TODOS (o la mayoría) sus píxeles de 30 m son bosque. Usar min es conservador:
+#   una celda queda como bosque únicamente si no hay píxeles de no-bosque en ella,
+#   lo que evita sobreestimar el hábitat disponible.
+# SB10 = BNB 2024 a 300 m → grilla de referencia para el análisis AHO
+# SB1000 = BNB 2024 a 600 m (aggregate factor 2 sobre SB10) → grilla más gruesa
+#   usada solo para encontrar el extent de la especie eficientemente en el loop AHO.
+# Los BNB de 1990 y 2000 se remuestrean al mismo grid que SB10 (mismo origen y
+# resolución) para garantizar alineación exacta celda a celda en el stack BNBstk.
 if (!file.exists("datos/capas/coberturas_tierra/BNB_300_2024.tif")) {
   r2024 <- raster("datos/capas/coberturas_tierra/BNB_2024_original.tif")
   r2024 <- aggregate(r2024, fact = 10, fun = min)
@@ -101,16 +160,23 @@ for (año in c("1990", "2000")) {
   }
 }
 
-# Stack histórico BNB para análisis de disminución continua (1990, 2000, 2024)
+# Stack histórico BNB (1990 → 2000 → 2024)
+# Las tres capas apiladas permiten comparar la cobertura boscosa en tres momentos,
+# detectando si parches con registros de la especie perdieron bosque con el tiempo.
 BNBstk <- stack(
   raster("datos/capas/coberturas_tierra/BNB_300_1990.tif"),
   raster("datos/capas/coberturas_tierra/BNB_300_2000.tif"),
   SB10)
 
-# Huella humana (IHEH Colombia) - cargar el archivo disponible
+# IHEH ----
+# Índice de Huella Espacial Humana (IHEH)
+# Se reproyecta al mismo grid que SB10 (misma resolución, extent y CRS) para poder
+# enmascararlo con el AOH de cada especie y calcular el promedio de HH en el hábitat.
+# projectRaster() interpola bilinealmente los valores continuos del IHEH.
 hh <- raster("datos/capas/coberturas_tierra/iheh_col.tif")
-hh <- projectRaster(hh, SB10)   # reproyectar a la misma resolución que SB10
+hh <- projectRaster(hh, SB10)
 
+# Tabla base eecorisk ----
 # Elevación mín/máx por especie desde el CSV de registros (campo elev_msnm)
 elev_min <- registros %>% filter(!is.na(elev_msnm)) %>%
   group_by(tax) %>% summarise(MinElv = min(elev_msnm), .groups = "drop")
@@ -158,9 +224,7 @@ resy <- yres(SB1000)
 
 AOOok <- vector("list", length(ne))
 
-################################################################################
-# Función AHO original
-################################################################################
+# Función AHO_fast ----
 
 # AHO <- function(model,
 #                 puntos,
@@ -236,7 +300,23 @@ AOOok <- vector("list", length(ne))
 # }
 
 
-# Funcion AHO optimizada
+# AHO_fast - Área de Hábitat Ocupado (Area of Habitat Occupied)
+# Determina qué parches de bosque (celdas BNB=1) forman parte del hábitat
+# real de la especie, considerando:
+#   1. Rango altitudinal: excluye celdas fuera del rango (mínElv-300, máxElv+300 m).
+#      El margen de 300 m acomoda la variación microclimática y de muestreo.
+#   2. Buffer de presencia: identifica parches de bosque que están dentro de
+#      `bufferSize` metros de algún registro. Solo esos parches se incluyen en el AOH.
+#
+# bufferSize = 6000 m (6 km):
+#   Equivale al 0.054° que usaba la función original en grados decimales
+#   (0.054° × 111 km/° ≈ 6 km). Se usa metros porque st_buffer() en un CRS
+#   proyectado (EPSG:3857) es exacto; en grados la distancia varía con la latitud.
+#   El buffer captura parches de bosque adyacentes a los puntos de registro,
+#   reconociendo que el espécimen pudo haber sido colectado en el borde del parche.
+#
+# La versión "fast" reemplaza raster::extract() por rasterize() para identificar
+# los IDs de parches dentro del buffer, lo que es ~10x más rápido en rasters grandes.
 AHO_fast <- function(model,
                      puntos,
                      xy,
@@ -322,7 +402,24 @@ AHO_fast <- function(model,
   
 }
 
-# Función sfrag: % parches pequeños y aislados
+# Función sfrag ----
+# sfrag - Fragmentación Severa (Severe Fragmentation)
+# Evalúa si el hábitat de la especie está severamente fragmentado según el Criterio B IUCN.
+# Para cada parche de bosque en el AOH calcula:
+#   - Área (km²): número de celdas × área por celda (92,106 m² a 300 m de resolución)
+#   - Distancia al parche más cercano (m): usando centroides y distancias geodésicas
+#   - Small: TRUE si área < umbral (150 km² para Serpocaulon)
+#   - Isolated: TRUE si distancia al vecino - radio del parche > disper (50 km)
+#     La resta del radio (sqrt(Area/π)) corrige el hecho de que la distancia
+#     entre centroides sobreestima la distancia entre bordes en parches grandes.
+#
+# FS_score = % de parches que son simultáneamente pequeños Y aislados.
+# Fragmentación severa (FS = TRUE) si FS_score > 50%:
+#   Más de la mitad de los parches donde vive la especie son pequeños y están
+#   tan aislados que la recolonización tras una extinción local es improbable.
+#
+# bufferSize = 20 (no se usa en la versión actual con bufferPoints = FALSE en sfrag,
+#   pero se conserva por compatibilidad con la función original del GEPC).
 sfrag <- function(BNB, puntos, xy = c(2, 3), bufferSize = 20, bufferPoints = TRUE) {
   if (!inherits(BNB, "RasterLayer")) stop("BNB debe ser RasterLayer")
   groups <- clump(BNB, directions = 4)
@@ -351,7 +448,7 @@ sfrag <- function(BNB, puntos, xy = c(2, 3), bufferSize = 20, bufferPoints = TRU
   return(list(Tall, FS_score, FS))
 }
 
-# Calcular AHO por especie
+# Loop AHO por especie ----
 pb <- txtProgressBar(min = 0,
                      max = length(ne),
                      style = 3)
@@ -401,7 +498,7 @@ for(i in seq_along(ne)){
 }
 close(pb)
 
-# Fragmentación severa
+# Loop sfrag por especie ----
 sg <- vector("list", length(ne))
 pb2 <- txtProgressBar(min = 0, max = length(ne), style = 3)
 for (i in seq_along(ne)) {
@@ -413,7 +510,7 @@ for (i in seq_along(ne)) {
 }
 close(pb2)
 
-# % Huella humana en el AHO por especie
+# Huella humana en AOH ----
 pct_hh <- sapply(seq_along(ne), function(i) {
   
   if (is.null(AOOok[[i]]))
@@ -430,6 +527,22 @@ pct_hh <- sapply(seq_along(ne), function(i) {
   
 })
 
+# Subpoblaciones desaparecidas (discon) ----
+# discon - Discontinuidad / Subpoblaciones Desaparecidas
+# Detecta si alguna subpoblación de la especie desapareció entre el pasado y el presente,
+# comparando el stack histórico BNB (1990, 2000) contra la capa actual (2024).
+# Lógica por especie:
+#   Para cada capa histórica (1990, 2000):
+#     1. Recorta BNBstk al extent de la especie + buffer de 2 celdas (eficiencia)
+#     2. Identifica parches de bosque (clump) en esa capa histórica
+#     3. Extrae los IDs de parches donde había registros de la especie
+#     4. Verifica si esas celdas tienen bosque en 2024
+#     5. Si un parche histórico con registros NO tiene bosque en 2024 → perdida = TRUE
+# cod_dism_subpob = YES indica evidencia de pérdida de hábitat que implica
+# posible desaparición de subpoblaciones (subcriterio B2b(iv) de la IUCN).
+#
+# Nota: clump() sobre el raster completo de Colombia tarda horas; sobre el extent
+# recortado de una especie tarda segundos — por eso se recorta primero.
 # Detectar subpoblaciones desaparecidas por especie
 # Se recorta BNBstk a la extensión de cada especie antes de clumpear
 # (clump sobre Colombia completa es inviablemente lento)
@@ -477,7 +590,7 @@ subpob_perdida <- sapply(seq_along(ne), function(i) {
 
 close(pb3)
 
-# Tabla de resultados
+# Tabla de resultados ----
 umbral_HH <- 40   # % para declarar disminución continua de hábitat
 
 Tablafrag <- data.frame(
@@ -531,6 +644,7 @@ write.csv(do.call(rbind, Tallfg),
           "resultados/eecorisk/fragmentacion_severa/detalle_parches.csv",
           row.names = FALSE)
 
+# Textos SIS ----
 # Municipios y departamentos por especie (generado en script 02)
 reg_mpios <- read.csv("resultados/ConR/criterioB/registros_municipios_dptos.csv",
                       encoding = "UTF-8")
@@ -604,8 +718,7 @@ Tablafrag <- Tablafrag %>%
     amenazas_descon   = ifelse(cod_dism_habitat == "Unknown", "TRUE", "FALSE")
   )
 
-# Actualizar base_maestra.csv con todos los campos derivados de eecorisk
-
+# Base maestra ----
 Tablafrag$no_amenazas <- Tablafrag$no_amenazas == "TRUE"
 Tablafrag$amenazas_descon <- Tablafrag$amenazas_descon == "TRUE"
 

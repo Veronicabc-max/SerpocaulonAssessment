@@ -33,11 +33,12 @@
 #     Alternativa: MapBiomas Fuego https://mapbiomas.org/fire (cicatrices anuales)
 #     Esta amenaza es de baja relevancia para helechos epífitos de bosque húmedo.
 
+# Librerías ----
 library(sf)
 library(dplyr)
 library(osmextract)
-library(sf)
 
+# Vías OSM ----
 ruta_vias <- "datos/capas/amenazas/vias_colombia.gpkg"
 
 if (!file.exists(ruta_vias)) {
@@ -65,6 +66,7 @@ if (!file.exists(ruta_vias)) {
   
 }
 
+# Datos ----
 sf_use_s2(FALSE)
 
 registros <- read.csv("datos/registros/registros_limpios.csv",
@@ -95,6 +97,7 @@ subpoblaciones <- read.csv(
   "resultados/ConR/subpoblaciones/subpoblaciones_registros.csv",
   stringsAsFactors = FALSE)
 
+# Funciones ----
 # Función: % subpoblaciones afectadas y código de alcance
 alcance_sis <- function(pct_afectadas) {
   case_when(
@@ -176,7 +179,7 @@ pct_subpob_amenaza <- function(puntos, amenaza_sf, subpop_res){
   
 }
 
-# Petróleo y gas (ANH)
+# Petróleo y gas ----
 petroleo <- st_read(
   "datos/capas/amenazas/Tierras_Junio_170625.shp",
   quiet = TRUE) %>%
@@ -192,6 +195,7 @@ af_petroleo <-
   rename(pct_petroleo = pct_afectadas,
     n_petroleo = n_subpob_amenazada)
 
+# Minería ----
 # Minería de metales (ANM)
 # NOTA: capa de 2022, actualizar cuando esté disponible versión más reciente
 mineria <- st_read(
@@ -209,7 +213,7 @@ af_mineria <-
   rename(pct_mineria = pct_afectadas,
     n_mineria = n_subpob_amenazada)
 
-# Buffer de 1 km alrededor de vías para capturar impacto
+# Vías (buffer 1 km) ----
 vias_buf <- vias %>%
   st_transform(9377) %>%
   st_buffer(1000) %>%
@@ -222,6 +226,7 @@ af_vias <- pct_subpob_amenaza(
   rename(pct_vias = pct_afectadas,
     n_vias = n_subpob_amenazada)
 
+# Cobertura de la tierra IDEAM ----
 # Cobertura de la tierra (IDEAM 2022) - CLC Corine Land Cover
 # Archivo ~4 GB, no está en GitHub; descargar desde portal IDEAM y guardar en:
 # datos/capas/coberturas_tierra/ECOSISTEMAS_18062025.gdb
@@ -253,7 +258,7 @@ if (tiene_cobertura) {
   af_urbano    <- data.frame(tax = especies, pct_urbano    = NA_real_, n_urbano    = 0L)
 }
 
-# Tabla de amenazas por especie
+# Tabla de amenazas ----
 amenazas_sp <- subpop_res %>%
   left_join(af_petroleo,  by = "tax") %>%
   left_join(af_mineria,   by = "tax") %>%
@@ -263,7 +268,7 @@ amenazas_sp <- subpop_res %>%
   left_join(af_urbano,    by = "tax") %>%
   left_join(base_eeco %>% dplyr::select(tax, cod_dism_habitat), by = "tax")
 
-# Construir códigos SIS
+# Códigos SIS ----
 amenazas_sp <- amenazas_sp %>%
   mutate(
     tiene_petroleo  = !is.na(pct_petroleo)  & pct_petroleo  > 0,
@@ -306,7 +311,7 @@ amenazas_sp <- amenazas_sp %>%
   ) %>%
   ungroup()
 
-# Texto descripción de amenazas
+# Texto descripción de amenazas ----
 mpio_dpto_sp <- function(sp) {
   d <- reg_mpios %>% filter(tax == sp, !is.na(municipio))
   if (nrow(d) == 0) return("municipios no disponibles")
@@ -437,7 +442,7 @@ amenazas_sp <- amenazas_sp %>%
   dplyr::select(-codigos_lista, -alcances_lista)
 write.csv(amenazas_sp, "resultados/amenazas/tabla_amenazas.csv", row.names = FALSE)
 
-# Actualizar base_maestra.csv
+# Base maestra ----
 base_maestra <- read.csv("SIS_Connect/base_maestra.csv",
                          encoding = "UTF-8", check.names = FALSE)
 names(base_maestra) <- make.unique(names(base_maestra))

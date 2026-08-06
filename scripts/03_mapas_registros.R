@@ -3,6 +3,7 @@
 # Autora: Verónica Bedoya; Maria Judith Carmona | 2026
 # Correr DESPUÉS del script 02 (necesita resultados ConR) y ANTES del script 04
 
+# Librerías ----
 library(sf)
 library(ggplot2)
 library(dplyr)
@@ -12,6 +13,7 @@ library(cowplot)
 library(readxl)
 library(mapview)
 
+# Datos ----
 dir.create("resultados/mapas/por_especie",
            recursive = TRUE,
            showWarnings = FALSE)
@@ -54,6 +56,7 @@ eoo_shp <- st_read(
   "resultados/ConR/formas_EOO/EOO_poly.shp",
   quiet = TRUE)
 
+# Función mapa ----
 mapa_especie <- function(sp, guardar=TRUE){
   
   pts_sp <- puntos_sf |> filter(tax==sp)
@@ -209,14 +212,17 @@ mapa_especie <- function(sp, guardar=TRUE){
   p_final
 }
 
+# Mapa interactivo ----
 mapview(puntos_sf,
   zcol="tax",
   layer.name="Especie",
   map.types="Esri.WorldShadedRelief")
 
+# Prueba ----
 sp_prueba <- sort(unique(registros$tax))[1]
 print(mapa_especie(sp_prueba,FALSE))
 
+# Loop mapas ----
 especies <- sort(unique(registros$tax))
 
 pb <- txtProgressBar(

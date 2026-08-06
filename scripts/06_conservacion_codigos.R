@@ -3,9 +3,11 @@
 # Autora: Verónica Bedoya; Maria Judith Carmona | 2026
 # Correr después del script 05
 
+# Librerías ----
 library(dplyr)
 library(sf)
 
+# Datos ----
 registros  <- read.csv("datos/registros/registros_limpios.csv", encoding = "UTF-8")
 subpop_res <- read.csv("resultados/ConR/subpoblaciones/subpoblaciones.csv")
 base_eeco  <- read.csv("resultados/eecorisk/fragmentacion_severa/resultados_eecorisk.csv",
@@ -15,6 +17,7 @@ base_maestra <- read.csv("SIS_Connect/base_maestra.csv",
                          encoding = "UTF-8", check.names = FALSE)
 names(base_maestra) <- make.unique(names(base_maestra))
 
+# Tipos de áreas protegidas ----
 # Figuras de conservación: fuerte vs débil
 # Figuras fuertes: PNN, SFF, Santuario de Flora, Via Parque, Reserva Natural
 # Figuras débiles: DMI, DRMI, Reserva Forestal, Area de Conservacion de Suelos
@@ -50,7 +53,7 @@ num_palabras <- function(n) {
   )
 }
 
-# Construir campos de conservación
+# Campos de conservación ----
 conservacion <- base_maestra %>%
   dplyr::select(
     tax        = `NOMBRE CIENTÍFICO sin autor`,
@@ -111,6 +114,7 @@ conservacion <- base_maestra %>%
     listado_exsitu = "N/A"
   )
 
+# Base maestra ----
 base_maestra <- base_maestra %>%
   left_join(dplyr::select(conservacion, tax, desc_conservacion, cod_conservacion,
                            cod_investigacion, reporte_exsitu, listado_exsitu),
