@@ -364,7 +364,7 @@ for(i in seq_along(ne)){
   
   if(nrow(csp[[i]]) == 0) next
   
-  cex <- extract(
+  cex <- raster::extract(
     SB1000,
     csp1[[i]],
     cell = TRUE
@@ -621,23 +621,21 @@ base_maestra <- base_maestra %>%
                            tendencia, fuente_tendencia, no_amenazas, amenazas_descon),
             by = c("NOMBRE CIENTÍFICO sin autor" = "tax")) %>%
   mutate(
-    `% PARCHES PEQUEÑOS Y AISLADOS`                               = coalesce(`% PARCHES PEQUEÑOS Y AISLADOS`, FS_score),
-    `% HUELLA HUMANA EN LA AOO`                                   = coalesce(`% HUELLA HUMANA EN LA AOO`, pct_HH),
-    `REPORTE SUBPOBLACIONES DESAPARECIDAS` =
-      coalesce(`REPORTE SUBPOBLACIONES DESAPARECIDAS`,
-               subpob_desap_sino),
-    `CÓDIGO SIS FRAGMENTACIÓN`                                    = coalesce(`CÓDIGO SIS FRAGMENTACIÓN`, cod_fragmentacion),
-    `DESCRIPCIÓN DE FRAGMENTACIÓN SIS`                            = coalesce(`DESCRIPCIÓN DE FRAGMENTACIÓN SIS`, desc_frag),
-    `CÓDIGO SIS DISMINUCIÓN CONTINUA HÁBITAT`                    = coalesce(`CÓDIGO SIS DISMINUCIÓN CONTINUA HÁBITAT`, cod_dism_habitat),
-    `DESCRIPCIÓN DE DISMINUCIÓN CONTINUA HÁBITAT SIS`            = coalesce(`DESCRIPCIÓN DE DISMINUCIÓN CONTINUA HÁBITAT SIS`, desc_dism_hab),
-    `CÓDIGO SIS FUENTE DE LA DISM. CONTINUA HÁBITAT`             = coalesce(`CÓDIGO SIS FUENTE DE LA DISM. CONTINUA HÁBITAT`, fuente_dism_habitat),
-    `CÓDIGO SIS DISMINUCIÓN CONTINUA SUBPOBLACIONES`             = coalesce(`CÓDIGO SIS DISMINUCIÓN CONTINUA SUBPOBLACIONES`, cod_dism_subpob),
-    `DESCRIPCIÓN DE DISMINUCIÓN CONTINUA SUBPOBLACIONES SIS`     = coalesce(`DESCRIPCIÓN DE DISMINUCIÓN CONTINUA SUBPOBLACIONES SIS`, desc_dism_subpob),
-    `CÓDIGO SIS FUENTE DE LA DISM. CONTINUA SUBPOBLACIONES`      = coalesce(`CÓDIGO SIS FUENTE DE LA DISM. CONTINUA SUBPOBLACIONES`, fuente_dism_subpob),
-    `CÓDIGO SIS TENDENCIA POBLACIONAL`                           = coalesce(`CÓDIGO SIS TENDENCIA POBLACIONAL`, tendencia),
-    `CÓDIGO SIS FUENTE DE LA TENDENCIA POBLACIONAL`              = coalesce(`CÓDIGO SIS FUENTE DE LA TENDENCIA POBLACIONAL`, fuente_tendencia),
-    `REPORTE DE "NO AMENAZAS" SIS`                               = coalesce(`REPORTE DE "NO AMENAZAS" SIS`, no_amenazas),
-    `REPORTE DE "AMENAZAS DESCONOCIDAS" SIS`                     = coalesce(`REPORTE DE "AMENAZAS DESCONOCIDAS" SIS`, amenazas_descon)
+    `% PARCHES PEQUEÑOS Y AISLADOS`                           = FS_score,
+    `% HUELLA HUMANA EN LA AOO`                               = pct_HH,
+    `REPORTE SUBPOBLACIONES DESAPARECIDAS`                    = subpob_desap_sino,
+    `CÓDIGO SIS FRAGMENTACIÓN`                                = cod_fragmentacion,
+    `DESCRIPCIÓN DE FRAGMENTACIÓN SIS`                        = desc_frag,
+    `CÓDIGO SIS DISMINUCIÓN CONTINUA HÁBITAT`                 = cod_dism_habitat,
+    `DESCRIPCIÓN DE DISMINUCIÓN CONTINUA HÁBITAT SIS`         = desc_dism_hab,
+    `CÓDIGO SIS FUENTE DE LA DISM. CONTINUA HÁBITAT`          = fuente_dism_habitat,
+    `CÓDIGO SIS DISMINUCIÓN CONTINUA SUBPOBLACIONES`          = cod_dism_subpob,
+    `DESCRIPCIÓN DE DISMINUCIÓN CONTINUA SUBPOBLACIONES SIS`  = desc_dism_subpob,
+    `CÓDIGO SIS FUENTE DE LA DISM. CONTINUA SUBPOBLACIONES`   = fuente_dism_subpob,
+    `CÓDIGO SIS TENDENCIA POBLACIONAL`                        = tendencia,
+    `CÓDIGO SIS FUENTE DE LA TENDENCIA POBLACIONAL`           = fuente_tendencia,
+    `REPORTE DE "NO AMENAZAS" SIS`                            = no_amenazas,
+    `REPORTE DE "AMENAZAS DESCONOCIDAS" SIS`                  = amenazas_descon
   ) %>%
   dplyr::select(-FS_score, -pct_HH, -cod_fragmentacion, -cod_dism_habitat,
                 -cod_dism_subpob, -subpob_desap_sino, -fuente_dism_habitat, -fuente_dism_subpob,
@@ -647,5 +645,10 @@ base_maestra <- base_maestra %>%
 
 write.csv(base_maestra, "SIS_Connect/base_maestra.csv",
           row.names = FALSE, fileEncoding = "UTF-8")
+
+# Guardar objetos intermedios para mapas de verificación (script 07)
+dir.create("resultados/eecorisk/habitat_disponible", recursive = TRUE, showWarnings = FALSE)
+saveRDS(AOOok, "resultados/eecorisk/habitat_disponible/AOOok.rds")
+saveRDS(ne,    "resultados/eecorisk/habitat_disponible/ne.rds")
 
 message("Script 04 completado.")

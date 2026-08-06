@@ -414,18 +414,15 @@ base_maestra <- base_maestra %>%
             by = c("NOMBRE CIENTÍFICO sin autor" = "tax")) %>%
   left_join(desc_tamano, by = c("NOMBRE CIENTÍFICO sin autor" = "tax")) %>%
   mutate(
-    `EOO (km2)`                            = coalesce(`EOO (km2)`, EOO_km2),
-    `AOO (km2)`                            = coalesce(`AOO (km2)`, AOO_km2),
-    `# LOCALIDADES "locations"`            = coalesce(`# LOCALIDADES "locations"`, n_loc),
-    `# SUBPOBLACIONES`                     = coalesce(`# SUBPOBLACIONES`, n_subpop),
-    `% OCURRENCIAS EN AREAS PROTEGIDAS`    = coalesce(`% OCURRENCIAS EN AREAS PROTEGIDAS`, pct_en_ap),
-    `LISTADO DE AREAS PROTEGIDAS CON OCURRENCIAS` = coalesce(
-      `LISTADO DE AREAS PROTEGIDAS CON OCURRENCIAS`, areas_protegidas),
-    `DESCRIPCIÓN TAMAÑO POBLACIONAL Y DEMOGRAFÍA` = coalesce(
-      `DESCRIPCIÓN TAMAÑO POBLACIONAL Y DEMOGRAFÍA`, desc_tamano_pob),
-    `REPORTE DE PRESENCIA EN AREAS PROTEGIDAS`    = coalesce(
-      `REPORTE DE PRESENCIA EN AREAS PROTEGIDAS`,
-      ifelse(is.na(pct_en_ap) | pct_en_ap == 0, "NO", "YES"))
+    `EOO (km2)`                                   = EOO_km2,
+    `AOO (km2)`                                   = AOO_km2,
+    `# LOCALIDADES "locations"`                   = n_loc,
+    `# SUBPOBLACIONES`                            = n_subpop,
+    `% OCURRENCIAS EN AREAS PROTEGIDAS`           = pct_en_ap,
+    `LISTADO DE AREAS PROTEGIDAS CON OCURRENCIAS` = areas_protegidas,
+    `DESCRIPCIÓN TAMAÑO POBLACIONAL Y DEMOGRAFÍA` = desc_tamano_pob,
+    `REPORTE DE PRESENCIA EN AREAS PROTEGIDAS`    = ifelse(
+      is.na(pct_en_ap) | pct_en_ap == 0, "NO", "YES")
   ) %>%
   dplyr::select(-EOO_km2, -AOO_km2, -n_loc, -n_subpop, -pct_en_ap,
                 -areas_protegidas, -desc_tamano_pob)

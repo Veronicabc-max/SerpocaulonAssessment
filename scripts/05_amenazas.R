@@ -447,13 +447,12 @@ base_maestra <- base_maestra %>%
                            cod_tiempo, cod_alcance, cod_severidad, cod_presiones),
             by = c("NOMBRE CIENTÍFICO sin autor" = "tax")) %>%
   mutate(
-    `DESCRIPCIÓN AMENAZAS`                     = coalesce(`DESCRIPCIÓN AMENAZAS`, desc_amenazas),
-    `CÓDIGO SIS AMENAZAS`                      = coalesce(`CÓDIGO SIS AMENAZAS`, cod_amenazas),
-    `CÓDIGO SIS TIEMPO DE LAS AMENAZAS`        = coalesce(`CÓDIGO SIS TIEMPO DE LAS AMENAZAS`, cod_tiempo),
-    `CÓDIGO SIS ALCANCE DE LAS AMENAZAS`       = coalesce(`CÓDIGO SIS ALCANCE DE LAS AMENAZAS`, cod_alcance),
-    `CÓDIGO SIS SEVERIDAD DE LAS AMENAZAS`     = coalesce(`CÓDIGO SIS SEVERIDAD DE LAS AMENAZAS`, cod_severidad),
-    `CÓDIGO SIS PRESIONES RESULTADO DE AMENAZAS` = coalesce(
-      `CÓDIGO SIS PRESIONES RESULTADO DE AMENAZAS`, cod_presiones)
+    `DESCRIPCIÓN AMENAZAS`                       = desc_amenazas,
+    `CÓDIGO SIS AMENAZAS`                        = cod_amenazas,
+    `CÓDIGO SIS TIEMPO DE LAS AMENAZAS`          = cod_tiempo,
+    `CÓDIGO SIS ALCANCE DE LAS AMENAZAS`         = cod_alcance,
+    `CÓDIGO SIS SEVERIDAD DE LAS AMENAZAS`       = cod_severidad,
+    `CÓDIGO SIS PRESIONES RESULTADO DE AMENAZAS` = cod_presiones
   ) %>%
   dplyr::select(-desc_amenazas, -cod_amenazas, -cod_tiempo,
                 -cod_alcance, -cod_severidad, -cod_presiones)

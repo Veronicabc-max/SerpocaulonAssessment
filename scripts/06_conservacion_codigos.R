@@ -116,12 +116,12 @@ base_maestra <- base_maestra %>%
                            cod_investigacion, reporte_exsitu, listado_exsitu),
             by = c("NOMBRE CIENTÍFICO sin autor" = "tax")) %>%
   mutate(
-    `DESCRIPCIÓN ACCIONES DE CONSERVACIÓN`  = coalesce(`DESCRIPCIÓN ACCIONES DE CONSERVACIÓN`, desc_conservacion),
-    `CÓDIGO SIS CONSERVACIÓN REQUERIDA`     = coalesce(`CÓDIGO SIS CONSERVACIÓN REQUERIDA`, cod_conservacion),
-    `CÓDIGO SIS INVESTIGACION REQUERIDA`    = coalesce(`CÓDIGO SIS INVESTIGACION REQUERIDA`, cod_investigacion),
-    `REPORTE DE CONSERVACION EXSITU`        = coalesce(`REPORTE DE CONSERVACION EXSITU`, reporte_exsitu),
-    `LISTADO DE COLECCIONES EXSITU CON INDIVIDUOS` = coalesce(
-      `LISTADO DE COLECCIONES EXSITU CON INDIVIDUOS`, listado_exsitu)
+    `DESCRIPCIÓN ACCIONES DE CONSERVACIÓN`         = desc_conservacion,
+    `CÓDIGO SIS CONSERVACIÓN REQUERIDA`            = cod_conservacion,
+    `CÓDIGO SIS INVESTIGACION REQUERIDA`           = cod_investigacion,
+    # Exsitu: solo se sobreescribe si no hay valor manual previo (requiere consulta a herbarios)
+    `REPORTE DE CONSERVACION EXSITU`               = coalesce(`REPORTE DE CONSERVACION EXSITU`, reporte_exsitu),
+    `LISTADO DE COLECCIONES EXSITU CON INDIVIDUOS` = coalesce(`LISTADO DE COLECCIONES EXSITU CON INDIVIDUOS`, listado_exsitu)
   ) %>%
   dplyr::select(-desc_conservacion, -cod_conservacion, -cod_investigacion,
                 -reporte_exsitu, -listado_exsitu)
