@@ -148,7 +148,7 @@ subpop.comp.records <- function(
 # Datos y capas base ----
 # Cargar registros limpios
 # ConR requiere columnas en este orden: ddlat, ddlon, tax
-registros <- read.csv("datos/registros/registros_limpios.csv", encoding = "UTF-8")
+registros <- read.csv("datos/registros/registros_Amplia_Distrib.csv", encoding = "UTF-8")
 MyData <- registros[, c("ddlat", "ddlon", "tax")]
 
 # Límite nacional de Colombia (GADM nivel 0)
