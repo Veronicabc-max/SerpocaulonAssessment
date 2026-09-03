@@ -151,6 +151,28 @@ subpop.comp.records <- function(
 registros <- read.csv("datos/registros/registros_Amplia_Distrib.csv", encoding = "UTF-8")
 MyData <- registros[, c("ddlat", "ddlon", "tax")]
 
+# Especies con dispersión efectiva limitada a 60 m (experimentos del experto).
+# Para estas especies resol_sub_pop = 0.06 km (radio del buffer = 60 m), lo que
+# significa que dos registros a más de 120 m de distancia son subpoblaciones distintas.
+# Esto es consistente con la definición IUCN: subpoblaciones = grupos sin intercambio
+# genético significativo. Con 60 m de dispersal efectiva, individuos separados >120 m
+# tienen probabilidad de intercambio genético ≤ 1 individuo/año.
+# Para el resto de especies se usa el valor GEPC estándar: 5 km.
+especies_disper_bajo <- c(
+  "Serpocaulon antioquianum", "Serpocaulon attenuatum",
+  "Serpocaulon biauriculatum", "Serpocaulon concolorum",
+  "Serpocaulon loriceum",      "Serpocaulon patentissimum",
+  "Serpocaulon polystichum",   "Serpocaulon richardii",
+  "Serpocaulon tayronae",      "Serpocaulon wagnerii"
+)
+
+# Radio de subpoblación por especie (data.frame con columnas tax y radius)
+# subpop.comp() acepta data.frame en resol_sub_pop; une por columna "tax"
+resol_sub_pop_sp <- data.frame(
+  tax    = unique(MyData$tax),
+  radius = ifelse(unique(MyData$tax) %in% especies_disper_bajo, 0.06, 5)
+)
+
 # Límite nacional de Colombia (GADM nivel 0)
 # Se usa GADM en lugar de rnaturalearth porque tiene mayor precisión costera,
 # lo que mejora el recorte del EOO en especies costeras o de islas.
@@ -279,7 +301,7 @@ write.csv(loc$locations, "resultados/ConR/criterioB/localidades.csv", row.names 
 # export_shp = TRUE: guarda los polígonos de subpoblaciones para visualización.
 subpop <- subpop.comp(
   MyData,
-  resol_sub_pop = 5,
+  resol_sub_pop = resol_sub_pop_sp,   # radio específico por especie (data.frame tax + radius)
   export_shp = TRUE,
   show_progress = TRUE)
 

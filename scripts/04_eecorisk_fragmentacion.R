@@ -40,12 +40,16 @@
 #     insuficiente para mantener poblaciones viables a largo plazo.
 #     El GEPC define este valor según el grupo funcional de la especie.
 #
-#   disper = 50 km
-#     Distancia máxima de dispersión efectiva.
-#     Las esporas de helechos pueden viajar cientos de km en teoría, pero
-#     la colonización exitosa de nuevos parches ocurre principalmente a
-#     distancias menores. 50 km es el valor usado por el GEPC para pteridófitas.
-#     Un parche a más de 50 km de su vecino más cercano se considera "aislado".
+#   disper = 50 km (mayoría de especies) / 0.06 km = 60 m (10 especies)
+#     Distancia máxima de dispersión efectiva para recolonización de parches.
+#     Para la mayoría de especies se usa 50 km (valor GEPC para pteridófitas).
+#     Para 10 especies con dispersión limitada (experimentos del experto):
+#       S. antioquianum, S. attenuatum, S. biauriculatum, S. concolorum,
+#       S. loriceum, S. patentissimum, S. polystichum, S. richardii,
+#       S. tayronae, S. wagnerii → disper = 0.06 km (60 m).
+#     Con 60 m de dispersal, cualquier par de parches separados por ≥ 300 m
+#     (= 1 celda del raster) se considera aislado; el FS_score refleja entonces
+#     principalmente si los parches son pequeños (< 150 km²).
 #
 #   umbral_HH = 40%
 #     Porcentaje de huella humana promedio en el AOH a partir del cual se declara
@@ -68,14 +72,25 @@ library(writexl)
 # Cargar registros y agregar parámetros de especie
 # umbral y disper se añaden como columnas porque AHO_fast y sfrag los leen
 # directamente desde la tabla de puntos (columnas 4 y 5 respectivamente).
+
+# Especies con dispersión efectiva limitada a 60 m (experimentos del experto)
+especies_disper_bajo <- c(
+  "Serpocaulon antioquianum", "Serpocaulon attenuatum",
+  "Serpocaulon biauriculatum", "Serpocaulon concolorum",
+  "Serpocaulon loriceum",      "Serpocaulon patentissimum",
+  "Serpocaulon polystichum",   "Serpocaulon richardii",
+  "Serpocaulon tayronae",      "Serpocaulon wagnerii"
+)
+
 registros <- read.csv(
   "datos/registros/registros_limpios.csv",
   encoding = "UTF-8") %>%
   filter(!is.na(ddlat), !is.na(ddlon)) %>%
   mutate(
     elev_msnm = as.numeric(elev_msnm),
-    umbral = 150,   # km² - tamaño mínimo de parche (ver parámetros arriba)
-    disper = 50)    # km  - distancia máxima de dispersión (ver parámetros arriba)
+    umbral = 150,
+    disper = ifelse(tax %in% especies_disper_bajo, 0.06, 50)
+  )
 
 # Diagnóstico: registros sin elevación en el CSV original (se completarán con DEM)
 registros_raw <- read.csv("datos/registros/registros_limpios.csv",
