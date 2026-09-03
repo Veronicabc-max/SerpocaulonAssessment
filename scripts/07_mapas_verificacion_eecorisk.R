@@ -76,10 +76,10 @@ mapa_eecorisk <- function(sp, guardar = TRUE) {
 
   # Panel izquierdo: AOH
   # annotation_map_tile: descarga teselas OpenStreetMap (requiere internet la primera vez;
-  # las guarda en caché local). type = "cartolight" da fondo gris claro y legible.
+  # las guarda en caché local). type = "osm" da fondo gris claro y legible.
   # geom_tile con alpha = 0.6 permite ver el basemap por debajo del AOH.
   p_aoh <- ggplot() +
-    annotation_map_tile(type = "cartolight", zoom = NULL, quiet = TRUE) +
+    annotation_map_tile(type = "osm", zoom = NULL, quiet = TRUE) +
     geom_tile(data = aoh_df %>% filter(!is.na(fill_aoh)),
               aes(x = x, y = y), fill = "#2d8b57", alpha = 0.7) +
     geom_sf(data = pts, color = "black", fill = "#f5e642",
@@ -95,7 +95,7 @@ mapa_eecorisk <- function(sp, guardar = TRUE) {
 
   # Panel derecho: huella humana
   p_hh <- ggplot() +
-    annotation_map_tile(type = "cartolight", zoom = NULL, quiet = TRUE) +
+    annotation_map_tile(type = "osm", zoom = NULL, quiet = TRUE) +
     geom_tile(data = hh_full_df %>% filter(!is.na(hh)),
               aes(x = x, y = y, fill = hh), alpha = 0.7) +
     scale_fill_gradientn(
