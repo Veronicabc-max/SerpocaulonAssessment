@@ -7,7 +7,7 @@
 library(raster)
 library(sf)
 library(ggplot2)
-library(ggspatial)
+library(ggspatial)   # annotation_map_tile() para basemap
 library(dplyr)
 library(cowplot)
 
@@ -75,9 +75,13 @@ mapa_eecorisk <- function(sp, guardar = TRUE) {
   ylim <- c(ext@ymin - 0.1, ext@ymax + 0.1)
 
   # Panel izquierdo: AOH
+  # annotation_map_tile: descarga teselas OpenStreetMap (requiere internet la primera vez;
+  # las guarda en caché local). type = "cartolight" da fondo gris claro y legible.
+  # geom_tile con alpha = 0.6 permite ver el basemap por debajo del AOH.
   p_aoh <- ggplot() +
-    geom_raster(data = aoh_df %>% filter(!is.na(fill_aoh)),
-                aes(x = x, y = y), fill = "#2d8b57") +
+    annotation_map_tile(type = "cartolight", zoom = NULL, quiet = TRUE) +
+    geom_tile(data = aoh_df %>% filter(!is.na(fill_aoh)),
+              aes(x = x, y = y), fill = "#2d8b57", alpha = 0.7) +
     geom_sf(data = pts, color = "black", fill = "#f5e642",
             shape = 21, size = 2.5, stroke = 0.8) +
     coord_sf(xlim = xlim, ylim = ylim, expand = FALSE) +
@@ -89,10 +93,11 @@ mapa_eecorisk <- function(sp, guardar = TRUE) {
     theme_bw(base_size = 10) +
     theme(plot.title = element_text(size = 9, face = "bold"))
 
-  # Panel derecho: huella humana (toda el área recortada al extent, no solo AOH)
+  # Panel derecho: huella humana
   p_hh <- ggplot() +
-    geom_raster(data = hh_full_df %>% filter(!is.na(hh)),
-                aes(x = x, y = y, fill = hh)) +
+    annotation_map_tile(type = "cartolight", zoom = NULL, quiet = TRUE) +
+    geom_tile(data = hh_full_df %>% filter(!is.na(hh)),
+              aes(x = x, y = y, fill = hh), alpha = 0.7) +
     scale_fill_gradientn(
       colours = c("#1a9641", "#ffffbf", "#d7191c"),
       values  = scales::rescale(c(0, umbral_HH, 100)),
@@ -100,10 +105,6 @@ mapa_eecorisk <- function(sp, guardar = TRUE) {
       name    = "HH (%)",
       guide   = guide_colorbar(barheight = 8)
     ) +
-    # Contorno del AOH encima
-    geom_raster(data = aoh_df %>% filter(!is.na(fill_aoh)),
-                aes(x = x, y = y), fill = NA,
-                color = "#2d8b57", alpha = 0) +
     geom_sf(data = pts, color = "black", fill = "white",
             shape = 21, size = 2.5, stroke = 0.8) +
     coord_sf(xlim = xlim, ylim = ylim, expand = FALSE) +
