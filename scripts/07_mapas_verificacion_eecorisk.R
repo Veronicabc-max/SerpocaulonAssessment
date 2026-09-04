@@ -7,9 +7,11 @@
 library(raster)
 library(sf)
 library(ggplot2)
-library(ggspatial)   # annotation_map_tile() para basemap
+library(ggspatial)   # annotation_map_tile() para basemap OSM
 library(dplyr)
 library(cowplot)
+# install.packages("prettymapr") # solo lo instalas la primera vez
+library(prettymapr)
 
 # Datos ----
 # Cargar objetos generados por script 04
@@ -40,39 +42,43 @@ mapa_eecorisk <- function(sp, guardar = TRUE) {
 
   aoh <- AOOok[[i]]
 
-  # Puntos de la especie
+  # Puntos de la especie (WGS84, siempre correctos)
   pts <- registros %>%
     filter(tax == sp) %>%
     st_as_sf(coords = c("ddlon", "ddlat"), crs = 4326)
 
-  # Huella humana recortada al AOH
-  aoh_mask        <- aoh
+  # Promedio HH en el AOH — en CRS nativo del raster (hh y aoh comparten CRS)
+  aoh_mask   <- aoh
   aoh_mask[aoh_mask == 0] <- NA
-  hh_crop         <- crop(hh, aoh_mask)
-  hh_mask         <- mask(hh_crop, aoh_mask)
-  pct_hh_val      <- round(mean(getValues(hh_mask), na.rm = TRUE), 0)
+  hh_crop    <- crop(hh, aoh_mask)
+  hh_mask    <- mask(hh_crop, aoh_mask)
+  pct_hh_val <- round(mean(getValues(hh_mask), na.rm = TRUE), 0)
 
   # Parámetros eecorisk de la especie
-  params <- Tablafrag %>% filter(tax == sp)
-  fs_score      <- if (nrow(params) > 0) params$FS_score[1]      else NA
-  cod_frag      <- if (nrow(params) > 0) params$cod_fragmentacion[1] else NA
-  cod_hab       <- if (nrow(params) > 0) params$cod_dism_habitat[1]  else NA
+  params    <- Tablafrag %>% filter(tax == sp)
+  fs_score  <- if (nrow(params) > 0) params$FS_score[1]           else NA
+  cod_frag  <- if (nrow(params) > 0) params$cod_fragmentacion[1]  else NA
+  cod_hab   <- if (nrow(params) > 0) params$cod_dism_habitat[1]   else NA
 
-  # Convertir rasters a data.frame para ggplot
+  # El BNB de IDEAM tiene CRS "unknown" en R pero sus coordenadas YA están en
+  # grados geográficos (verificado: -81.79 a -66.66 W, -4.25 a 13.41 N).
+  # Se asigna el CRS correcto sin reproyectar — solo se corrige la etiqueta.
+  crs(aoh)     <- CRS("+proj=longlat +ellps=GRS80")
+  crs(hh_crop) <- CRS("+proj=longlat +ellps=GRS80")
+
   aoh_df <- as.data.frame(aoh, xy = TRUE) %>%
     rename(valor = 3) %>%
-    mutate(panel = "AOH (área de hábitat disponible)",
-           fill_aoh = ifelse(valor == 1, "Hábitat", NA))
+    mutate(fill_aoh = ifelse(valor == 1, "Hábitat", NA))
 
-  hh_full_df <- as.data.frame(crop(hh, extent(aoh)), xy = TRUE) %>%
-    rename(hh = 3) %>%
-    mutate(panel = paste0("Huella humana  [promedio en AOH: ", pct_hh_val,
-                          "%  |  umbral: ", umbral_HH, "%]"))
+  hh_full_df <- as.data.frame(hh_crop, xy = TRUE) %>%
+    rename(hh = 3)
 
-  # Extensión con ligero margen
-  ext  <- extent(aoh)
-  xlim <- c(ext@xmin - 0.1, ext@xmax + 0.1)
-  ylim <- c(ext@ymin - 0.1, ext@ymax + 0.1)
+  # Extensión del mapa desde los PUNTOS (WGS84 garantizado) con margen proporcional
+  bbox_pts <- st_bbox(pts)
+  pad  <- max(diff(c(bbox_pts["xmin"], bbox_pts["xmax"])),
+              diff(c(bbox_pts["ymin"], bbox_pts["ymax"]))) * 0.15 + 0.2
+  xlim <- c(bbox_pts["xmin"] - pad, bbox_pts["xmax"] + pad)
+  ylim <- c(bbox_pts["ymin"] - pad, bbox_pts["ymax"] + pad)
 
   # Panel izquierdo: AOH
   # annotation_map_tile: descarga teselas OpenStreetMap (requiere internet la primera vez;
@@ -117,12 +123,8 @@ mapa_eecorisk <- function(sp, guardar = TRUE) {
     theme_bw(base_size = 10) +
     theme(plot.title = element_text(size = 9, face = "bold"))
 
-  p <- plot_grid(p_aoh, p_hh, ncol = 2) +
-    theme(plot.title = element_text(face = "italic")) +
-    labs(title = sp)
-
-  p <- ggdraw(p) +
-    draw_label(sp, x = 0.5, y = 0.98, vjust = 1,
+  p <- ggdraw(plot_grid(p_aoh, p_hh, ncol = 2, align = "hv")) +
+    draw_label(sp, x = 0.5, y = 0.99, vjust = 1,
                fontface = "italic", size = 13)
 
   if (guardar) {
