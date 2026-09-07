@@ -9,7 +9,7 @@ library(dplyr)
 
 # raw <- read_excel("datos/registros/Copia_Puntos_georreferenciados.xlsx") %>%
 #   mutate(fila_excel = row_number()) # versión previa
-raw <- read_excel("datos/registros/Registros_Amplia_Distrib.xlsx") %>%
+raw <- read_excel("datos/registros/Coordenadas_Serpocaulon.xlsx") %>%
   mutate(fila_excel = row_number()) # versión de 27/07/2026
 
 # 2. Seleccionar variables de interés ----
@@ -114,13 +114,13 @@ registros <- registros %>%
     habito,
     id)
 
-# 7. Base completa (registros de amplia distribucion) ----
+# 7. Base completa (todas las especies) ----
 
-registros_Amplia_Distrib <- registros
+Coordenadas_Serpocaulon <- registros
 
 # 8. Base para ConR (solo registros georreferenciados) ----
 
-registros_limpios <- registros_Amplia_Distrib %>%
+registros_limpios <- Coordenadas_Serpocaulon %>%
   filter(
     !is.na(ddlat),
     !is.na(ddlon))
@@ -133,7 +133,7 @@ cat("Registros originales:                     ",
     nrow(raw), "\n")
 
 cat("Registros sin híbridos:                   ",
-    nrow(registros_Amplia_Distrib), "\n")
+    nrow(Coordenadas_Serpocaulon), "\n")
 
 cat("Registros recuperados desde Lat/Long:     ",
     sum(
@@ -145,8 +145,8 @@ cat("Registros recuperados desde Lat/Long:     ",
 
 cat("Registros sin coordenadas:                ",
     sum(
-      is.na(registros_Amplia_Distrib$ddlat) |
-        is.na(registros_Amplia_Distrib$ddlon)
+      is.na(Coordenadas_Serpocaulon$ddlat) |
+        is.na(Coordenadas_Serpocaulon$ddlon)
     ),
     "\n"
 )
@@ -168,8 +168,8 @@ print(resumen)
 # 11. Guardar archivos ----
 
 write.csv(
-  registros_Amplia_Distrib,
-  "datos/registros/registros_Amplia_Distrib.csv",
+  Coordenadas_Serpocaulon,
+  "datos/registros/Coordenadas_Serpocaulon.csv",
   row.names = FALSE,
   fileEncoding = "UTF-8")
 
@@ -180,5 +180,6 @@ write.csv(
   fileEncoding = "UTF-8")
 
 cat("\nArchivos exportados correctamente:\n")
-cat(" - datos/registros/registros_Amplia_Distrib.csv\n")
+cat(" - datos/registros/Coordenadas_Serpocaulon.csv\n")
 cat(" - datos/registros/registros_limpios.csv\n")
+
