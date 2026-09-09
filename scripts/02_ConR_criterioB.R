@@ -521,3 +521,4 @@ base_maestra <- base_maestra %>%
 
 write.csv(base_maestra, "SIS_Connect/base_maestra.csv",
           row.names = FALSE, fileEncoding = "UTF-8")
+
