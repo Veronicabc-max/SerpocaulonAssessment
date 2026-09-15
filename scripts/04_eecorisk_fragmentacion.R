@@ -3,6 +3,11 @@
 # Autora: Verónica Bedoya; Maria Judith Carmona | 2026
 # Referencia: GEPC - Grupo de Especialistas en Plantas de Colombia
 #
+# Evaluación IUCN - Serpocaulon spp. Colombia
+# Script 04: Fragmentación severa, huella humana y disminución de hábitat (eecorisk)
+# Autora: Verónica Bedoya; Maria Judith Carmona | 2026
+# Referencia: GEPC - Grupo de Especialistas en Plantas de Colombia
+#
 # Este script implementa la metodología eecorisk del GEPC para evaluar las
 # condiciones del hábitat bajo el Criterio B de la IUCN (subcriterios b(iii) y b(iv)):
 #   - Fragmentación severa del hábitat disponible (AOH)
@@ -40,16 +45,12 @@
 #     insuficiente para mantener poblaciones viables a largo plazo.
 #     El GEPC define este valor según el grupo funcional de la especie.
 #
-#   disper = 50 km (mayoría de especies) / 0.06 km = 60 m (10 especies)
-#     Distancia máxima de dispersión efectiva para recolonización de parches.
-#     Para la mayoría de especies se usa 50 km (valor GEPC para pteridófitas).
-#     Para 10 especies con dispersión limitada (experimentos del experto):
-#       S. antioquianum, S. attenuatum, S. biauriculatum, S. concolorum,
-#       S. loriceum, S. patentissimum, S. polystichum, S. richardii,
-#       S. tayronae, S. wagnerii → disper = 0.06 km (60 m).
-#     Con 60 m de dispersal, cualquier par de parches separados por ≥ 300 m
-#     (= 1 celda del raster) se considera aislado; el FS_score refleja entonces
-#     principalmente si los parches son pequeños (< 150 km²).
+#   disper = 50 km
+#     Distancia máxima de dispersión efectiva.
+#     Las esporas de helechos pueden viajar cientos de km en teoría, pero
+#     la colonización exitosa de nuevos parches ocurre principalmente a
+#     distancias menores. 50 km es el valor usado por el GEPC para pteridófitas.
+#     Un parche a más de 50 km de su vecino más cercano se considera "aislado".
 #
 #   umbral_HH = 40%
 #     Porcentaje de huella humana promedio en el AOH a partir del cual se declara
@@ -72,29 +73,18 @@ library(writexl)
 # Cargar registros y agregar parámetros de especie
 # umbral y disper se añaden como columnas porque AHO_fast y sfrag los leen
 # directamente desde la tabla de puntos (columnas 4 y 5 respectivamente).
-
-# Especies con dispersión efectiva limitada a 60 m (experimentos del experto)
-especies_disper_bajo <- c(
-  "Serpocaulon antioquianum", "Serpocaulon attenuatum",
-  "Serpocaulon biauriculatum", "Serpocaulon concolorum",
-  "Serpocaulon loriceum",      "Serpocaulon patentissimum",
-  "Serpocaulon polystichum",   "Serpocaulon richardii",
-  "Serpocaulon tayronae",      "Serpocaulon wagnerii"
-)
-
 registros <- read.csv(
   "datos/registros/registros_limpios.csv",
   encoding = "UTF-8") %>%
   filter(!is.na(ddlat), !is.na(ddlon)) %>%
   mutate(
     elev_msnm = as.numeric(elev_msnm),
-    umbral = 150,
-    disper = ifelse(tax %in% especies_disper_bajo, 0.06, 50)
-  )
+    umbral = 150,   # Ha - tamaño mínimo de parche (ver parámetros arriba)
+    disper = 1)    # km  - distancia máxima de dispersión (ver parámetros arriba)
 
 # Diagnóstico: registros sin elevación en el CSV original (se completarán con DEM)
 registros_raw <- read.csv("datos/registros/registros_limpios.csv",
-  encoding = "UTF-8")
+                          encoding = "UTF-8")
 
 registros_raw %>%
   filter(is.na(suppressWarnings(as.numeric(elev_msnm)))) %>%
@@ -423,8 +413,8 @@ AHO_fast <- function(model,
 # Para cada parche de bosque en el AOH calcula:
 #   - Área (km²): número de celdas × área por celda (92,106 m² a 300 m de resolución)
 #   - Distancia al parche más cercano (m): usando centroides y distancias geodésicas
-#   - Small: TRUE si área < umbral (150 km² para Serpocaulon)
-#   - Isolated: TRUE si distancia al vecino - radio del parche > disper (50 km)
+#   - Small: TRUE si área < umbral (150 ha para Serpocaulon)
+#   - Isolated: TRUE si distancia al vecino - radio del parche > disper (1 km)
 #     La resta del radio (sqrt(Area/π)) corrige el hecho de que la distancia
 #     entre centroides sobreestima la distancia entre bordes en parches grandes.
 #
@@ -446,10 +436,10 @@ sfrag <- function(BNB, puntos, xy = c(2, 3), bufferSize = 20, bufferPoints = TRU
   corc1  <- as.data.frame(t(rbind(clon, clat))); coordinates(corc1) <- c("clon", "clat")
   if (length(Area) < 2) {
     return(list(data.frame(
-        "Area km^2" = Area,
-        "Dist_PMC m" = NA,
-        Isolated = "Solo un parche",
-        Small = Area < unique(puntos[,4])),NA,NA))
+      "Area km^2" = Area,
+      "Dist_PMC m" = NA,
+      Isolated = "Solo un parche",
+      Small = Area < unique(puntos[,4])),NA,NA))
   }
   dis      <- apply(as.data.frame(distm(corc1)), 2, as.numeric); dis[dis == 0] <- NA
   minall   <- apply(dis, 2, function(x) min(x, na.rm = TRUE))
@@ -564,14 +554,14 @@ pct_hh <- sapply(seq_along(ne), function(i) {
 pb3 <- txtProgressBar(min = 0, max = length(ne), style = 3)
 
 subpob_perdida <- sapply(seq_along(ne), function(i) {
-
+  
   setTxtProgressBar(pb3, i)
-
+  
   if (nrow(csp[[i]]) == 0) return(NA)
-
+  
   pts    <- csp[[i]]
   coords <- as.matrix(pts[, c(3, 2)])   # Longitud, Latitud
-
+  
   # Extensión con buffer de 2 celdas alrededor de los puntos
   cex    <- raster::extract(SB10, coords, cell = TRUE)
   ext_sp <- extentFromCells(SB10, unique(cex[, 1]))
@@ -579,27 +569,27 @@ subpob_perdida <- sapply(seq_along(ne), function(i) {
   ext_sp@xmax <- ext_sp@xmax + 2 * xres(SB10)
   ext_sp@ymin <- ext_sp@ymin - 2 * yres(SB10)
   ext_sp@ymax <- ext_sp@ymax + 2 * yres(SB10)
-
+  
   stk_sp      <- crop(BNBstk, ext_sp)
   n_layers    <- nlayers(stk_sp)
   current_v   <- getValues(stk_sp[[n_layers]])
-
+  
   for (j in 1:(n_layers - 1)) {
-
+    
     cl       <- clump(stk_sp[[j]], directions = 4)
     vals_cl  <- getValues(cl)
     vals_pts <- raster::extract(cl, coords)
     parches  <- unique(na.omit(vals_pts))
-
+    
     if (length(parches) == 0) next
-
+    
     for (p in parches) {
       idx <- which(vals_cl == p)
       if (all(current_v[idx] == 0 | is.na(current_v[idx])))
         return(TRUE)
     }
   }
-
+  
   FALSE
 })
 
@@ -700,14 +690,14 @@ Tablafrag <- Tablafrag %>%
   left_join(subpop_res %>% rename(n_subpop = subpop), by = "tax") %>%
   mutate(
     mpios = sapply(tax, mpio_dpto_sp),
-
+    
     desc_frag = case_when(
       cod_fragmentacion != "YES" ~ NA_character_,
       TRUE ~ paste0("El ", FS_score, "% de parches de hábitat donde se encuentra la especie ",
                     "son pequeños y aislados. Estos parches se encuentran en el/los municipio(s) de ",
                     mpios, ".")
     ),
-
+    
     desc_dism_hab = case_when(
       cod_dism_habitat != "YES" ~ NA_character_,
       TRUE ~ paste0(
@@ -718,13 +708,13 @@ Tablafrag <- Tablafrag %>%
         mpios, "."
       )
     ),
-
+    
     desc_dism_subpob = case_when(
       cod_dism_subpob != "YES" ~ NA_character_,
       TRUE ~ paste0("Es posible que alguna(s) subpoblación(es) de la especie en ",
                     mpios, " haya(n) desaparecido por la destrucción de su hábitat.")
     ),
-
+    
     tendencia         = ifelse(cod_dism_habitat == "YES", "Decreasing",
                                ifelse(cod_dism_habitat == "NO", "Stable", "Unknown")),
     fuente_tendencia  = ifelse(tendencia == "Unknown", "Unknown", "Inferred"),
@@ -743,10 +733,10 @@ names(base_maestra) <- make.unique(names(base_maestra))
 
 base_maestra <- base_maestra %>%
   left_join(dplyr::select(Tablafrag, tax, FS_score, pct_HH,
-                           cod_fragmentacion, cod_dism_habitat, cod_dism_subpob,
-                           subpob_desap_sino, fuente_dism_habitat, fuente_dism_subpob,
-                           desc_frag, desc_dism_hab, desc_dism_subpob,
-                           tendencia, fuente_tendencia, no_amenazas, amenazas_descon),
+                          cod_fragmentacion, cod_dism_habitat, cod_dism_subpob,
+                          subpob_desap_sino, fuente_dism_habitat, fuente_dism_subpob,
+                          desc_frag, desc_dism_hab, desc_dism_subpob,
+                          tendencia, fuente_tendencia, no_amenazas, amenazas_descon),
             by = c("NOMBRE CIENTÍFICO sin autor" = "tax")) %>%
   mutate(
     `% PARCHES PEQUEÑOS Y AISLADOS`                           = FS_score,
