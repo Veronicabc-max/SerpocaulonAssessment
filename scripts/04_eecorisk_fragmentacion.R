@@ -80,7 +80,7 @@ registros <- read.csv(
   mutate(
     elev_msnm = as.numeric(elev_msnm),
     umbral = 150,   # Ha - tamaño mínimo de parche (ver parámetros arriba)
-    disper = 1)    # km  - distancia máxima de dispersión (ver parámetros arriba)
+    disper = 10)    # km  - distancia máxima de dispersión (ver parámetros arriba)
 
 # Diagnóstico: registros sin elevación en el CSV original (se completarán con DEM)
 registros_raw <- read.csv("datos/registros/registros_limpios.csv",

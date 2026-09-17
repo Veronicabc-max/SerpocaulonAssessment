@@ -214,9 +214,9 @@ mapa_especie <- function(sp, guardar=TRUE){
 
 # Mapa interactivo ----
 mapview(puntos_sf,
-  zcol="tax",
-  layer.name="Especie",
-  map.types="Esri.WorldShadedRelief")
+        zcol="tax",
+        layer.name="Especie",
+        map.types="Esri.WorldShadedRelief")
 
 # Prueba ----
 sp_prueba <- sort(unique(registros$tax))[1]
