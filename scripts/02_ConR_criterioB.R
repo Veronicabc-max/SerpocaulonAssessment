@@ -218,7 +218,7 @@ write.csv(loc$locations, "resultados/ConR/criterioB/localidades.csv", row.names 
 # Calcular subpoblaciones (resolución 5 km)
 subpop <- subpop.comp(
   MyData,
-  resol_sub_pop = 5,
+  resol_sub_pop = 1,
   export_shp = TRUE,
   show_progress = TRUE)
 

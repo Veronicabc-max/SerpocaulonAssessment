@@ -45,14 +45,14 @@
 #     insuficiente para mantener poblaciones viables a largo plazo.
 #     El GEPC define este valor según el grupo funcional de la especie.
 #
-#   disper = 50 km
+#   disper = 1 km
 #     Distancia máxima de dispersión efectiva.
 #     Las esporas de helechos pueden viajar cientos de km en teoría, pero
 #     la colonización exitosa de nuevos parches ocurre principalmente a
 #     distancias menores. 50 km es el valor usado por el GEPC para pteridófitas.
 #     Un parche a más de 50 km de su vecino más cercano se considera "aislado".
 #
-#   umbral_HH = 40%
+#   umbral_HH = 30%
 #     Porcentaje de huella humana promedio en el AOH a partir del cual se declara
 #     disminución continua de hábitat (cod_dism_habitat = YES).
 #     El índice IHEH va de 0 (sin intervención) a 100 (completamente transformado).
@@ -80,7 +80,7 @@ registros <- read.csv(
   mutate(
     elev_msnm = as.numeric(elev_msnm),
     umbral = 150,   # Ha - tamaño mínimo de parche (ver parámetros arriba)
-    disper = 10)    # km  - distancia máxima de dispersión (ver parámetros arriba)
+    disper = 1)    # km  - distancia máxima de dispersión (ver parámetros arriba)
 
 # Diagnóstico: registros sin elevación en el CSV original (se completarán con DEM)
 registros_raw <- read.csv("datos/registros/registros_limpios.csv",
@@ -596,7 +596,7 @@ subpob_perdida <- sapply(seq_along(ne), function(i) {
 close(pb3)
 
 # Tabla de resultados ----
-umbral_HH <- 40   # % para declarar disminución continua de hábitat
+umbral_HH <- 30   # % para declarar disminución continua de hábitat
 
 Tablafrag <- data.frame(
   tax               = ne,
