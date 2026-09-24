@@ -85,7 +85,7 @@ mapa_especie <- function(sp, guardar=TRUE){
     "EOO = ", valor(round(par_sp$EOO_km2,0)), " km²\n",
     "AOO (2 km) = ", valor(round(par_sp$AOO_km2,0)), " km²\n",
     "Número de registros = ", nrow(pts_sp), "\n",
-    "Subpoblaciones (5 km) = ", valor(par_sp$n_subpop), "\n",
+    "Subpoblaciones (1 km) = ", valor(par_sp$n_subpop), "\n",
     "Localidades (10 km) = ", valor(par_sp$n_loc), "\n",
     "% registros en APs = ", valor(par_sp$pct_ap)
   )
